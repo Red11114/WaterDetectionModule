@@ -1,14 +1,0 @@
-2020-03-06 02:04:02,367 - INFO - Start warmup
-2020-03-06 02:04:02,367 - INFO - Loading settings
-2020-03-06 02:04:02,368 - INFO - ID loaded: 0001
-2020-03-06 02:04:02,368 - INFO - NUM loaded: +61462847362
-2020-03-06 02:04:02,420 - INFO - Strobe light :)
-2020-03-06 02:04:02,821 - INFO - Send command to LTE module 'AT+CMGF=1'
-2020-03-06 02:04:03,022 - INFO - Send command to LTE module 'AT+CMGD=1,1'
-2020-03-06 02:04:03,223 - INFO - Warmup has been completed
-2020-03-06 02:04:03,223 - INFO - Attempt to receive text
-2020-03-06 02:04:03,224 - INFO - serial data received, try to receive SMS
-2020-03-06 02:04:03,225 - INFO - Send command to LTE module 'AT+CMGL="REC UNREAD"'
-2020-03-06 02:04:05,429 - INFO - Attempt to receive text
-2020-03-06 02:04:05,430 - INFO - serial data received, try to receive SMS
-2020-03-06 02:04:05,430 - INFO - Send command to LTE module 'AT+CMGL="REC UNREAD"'
