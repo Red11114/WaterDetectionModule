@@ -3,6 +3,7 @@
 
 # Import required packages
 import serial
+import os, stat
 import logging
 from datetime import datetime
 import json
@@ -66,6 +67,15 @@ def write_settings():
 		json.dump(data, outfile,indent=4)
 
 def warmup():
+	# Setup logging
+	datetime_object = datetime.now()
+	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
+	try:
+		logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+	except:
+		print("Log file could not be made")
+		logging.error("Log file could not be made")
+
 	logging.info("Start warmup")
 	# Load settings from settings_.json
 	load_settings()
@@ -83,7 +93,7 @@ def warmup():
 # Function for sending AT commands
 def sendCommand(command): 
 	ser.write(command.encode())
-	logging.info("Send command to LTE module "%s"" % command)
+	logging.info("Send command to LTE module %s" % command)
 	_time.sleep(0.2)
 
 # Function for sending a Text
@@ -268,10 +278,7 @@ def main():
 	global ID
 	global NUM
 	global confirming
-	# Setup logging
-	datetime_object = datetime.now()
-	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
-	logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+	
 	warmup()
 	# Enter loop for receiving SMS's
 	confirming = False
