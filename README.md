@@ -113,10 +113,58 @@ sudo apt-get upgrade -y
 
 ## Aquiring and configuring git repository
 
-What things you need to install the software and how to install them
-
+First install git 
 ```
-Give examples
+sudo apt-get install git
+```
+Then type "y" when prompted to install
+
+To clone the Git repository for the standalone Water Detection Module type
+```
+git clone https://github.com/Red11114/WaterDetectionModule.git
+```
+### Creating a Virtual Environment
+
+Install **pip** first
+```
+sudo apt-get install python3-pip
+```
+Then install **virtualenv** using pip3
+```
+sudo pip3 install virtualenv 
+```
+Now create a virtual environment 
+```
+virtualenv venv
+```
+>you can use any name insted of **venv**
+
+### Activate your virtual environment:
+
+When developing, the code must be run using the virtual environment
+To activate the virtual environment type
+```
+source venv/bin/activate
+```
+To deactivate type
+```
+deactivate
+```
+
+### Installing required packages
+
+First activate the virtual environment
+```
+pip install -r requirements.txt
+```
+
+To check currently install packages type
+```
+pip freeze
+```
+To save currently installed packages to a new file type
+```
+pip freeze > requirements.txt
 ```
 
 ### Installing

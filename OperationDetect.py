@@ -3,12 +3,12 @@
 
 # Import required packages
 import serial
+import RPi.GPIO as GPIO
 import os, stat
 import logging
 from datetime import datetime
 import json
 import time as _time
-import RPi.GPIO as GPIO
 import threading
 
 ID = ""
@@ -31,6 +31,7 @@ ser = serial.Serial(SERIAL_PORT,SERIAL_RATE)
 
 # Setup GPIO pins and define float/button pins
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 GPIO.setup(22, GPIO.OUT, initial = GPIO.LOW) # Strobe pin
@@ -88,6 +89,7 @@ def warmup():
 		ser.open()
 	sendCommand(OPERATE_SMS_MODE)
 	sendCommand(CLEAR_READ)
+	ser.read(ser.in_waiting)
 	logging.info('Warmup has been completed')
 	
 # Function for sending AT commands
@@ -126,9 +128,9 @@ def receive_txt():
 		ser.open()
 	# Read in the modems first response
 	reply = ser.read(ser.in_waiting)
-	print(reply)
+	# print(reply)
 	# Check for a serial response
-	if reply != "":
+	if reply != b'':
 		print("serial data received, try to receive SMS")
 		logging.info("serial data received, try to receive SMS")
 		sendCommand(RECEIVE_SMS)
