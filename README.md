@@ -84,7 +84,7 @@ The default password is: raspberry
 
 ### Change Hostname and Password
 
-After SSHing intot he pi for the first time, the hostname and password should be changed immediately by typing
+After SSHing into the Pi for the first time, the hostname and password should be changed immediately by typing
 ```
 sudo raspi-config
 ```
