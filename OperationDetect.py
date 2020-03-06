@@ -126,41 +126,39 @@ def receive_txt():
 	if not ser.is_open:
 		logging.info("Open serial")
 		ser.open()
-	# Read in the modems first response
-	reply = ser.read(ser.in_waiting)
-	# print(reply)
-	# Check for a serial response
-	if reply != b'':
-		print("serial data received, try to receive SMS")
-		logging.info("serial data received, try to receive SMS")
-		sendCommand(RECEIVE_SMS)
-		reply = ser.read(ser.in_waiting).decode()
-		print("RECEIVE_SMS Response: %s" % reply)
-		# Check if the reply contains a received SMS
-		if reply.find("CMGL: ") != -1:
-			# Split the reply inot individual responses
-			reply_lines = reply.split("\n")
-			print("reply_lines %s" % reply_lines)
-			# Create info list of received SMS response
-			for i in range(len(reply_lines)):
-				if reply_lines[i].find("CMGL: ") != -1:
-					response_index = i
-					print("response at index: %s"% i)
-			info_list = reply_lines[response_index]
-			info_list = info_list.split(",")
-			print("info_list: %s" % info_list)
-			# Find number of txts in mem, the sender's number and the text msg
-			txt_num = info_list[0]
-			txt_num = txt_num[len(txt_num)-1:len(txt_num)]
-			print("NUMBER OF TXTS: %s" % txt_num)
-			number = info_list[2]
-			number = number[1:len(number)-1]
-			print("NUMBER: %s" % number)
-			text_msg = reply_lines[response_index+1]
-			print("TEXT: %s" % text_msg)
-			# Clear the modems SMS memory
-			sendCommand(CLEAR_READ)
-			return number, text_msg
+	# Check if there is any unread texts
+	sendCommand(RECEIVE_SMS)
+	sendCommand('\x1A')
+	_time.sleep(1)
+	reply = ser.read(ser.in_waiting).decode()
+	print("RECEIVE_SMS Response: %s" % reply)
+	# Check if the reply contains a received SMS
+	if reply.find("CMGL: ") != -1:
+		# Split the reply inot individual responses
+		reply_lines = reply.split("\n")
+		print("reply_lines %s" % reply_lines)
+		# Create info list of received SMS response
+		for i in range(len(reply_lines)):
+			if reply_lines[i].find("CMGL: ") != -1:
+				response_index = i
+				print("response at index: %s"% i)
+		info_list = reply_lines[response_index]
+		info_list = info_list.split(",")
+		print("info_list: %s" % info_list)
+		# Find number of txts in mem, the sender's number and the text msg
+		txt_num = info_list[0]
+		txt_num = txt_num[len(txt_num)-1:len(txt_num)]
+		print("NUMBER OF TXTS: %s" % txt_num)
+		number = info_list[2]
+		number = number[1:len(number)-1]
+		print("NUMBER: %s" % number)
+		text_msg = reply_lines[response_index+1]
+		print("TEXT: %s" % text_msg)
+		# Clear the modems SMS memory
+		sendCommand(CLEAR_READ)
+		sendCommand('\x1A')
+		reply = ser.read(ser.in_waiting)
+		return number, text_msg
 	return None,None
 
 # Fucntion to start a timer while waiting for a response
@@ -193,7 +191,7 @@ def receive_confirmation(timer):
 					logging.warning("error: confirmation not correctly spelt")
 			else:
 				send_txt('Reply in format: ID yes/no, Example: 0005 yes',txt_number)
-		_time.sleep(2)
+		_time.sleep(1)
 	logging.info("TIMER OUT")
 	confirming = False
 	return None
@@ -217,7 +215,7 @@ def float_pressed(channel):
 	# initialise active check time
 	check = False
 	check_time = _time.perf_counter()
-	false_detect_time = 30
+	false_detect_time = 5
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0 and check == False:
 		if _time.perf_counter() - check_time > false_detect_time:
@@ -225,9 +223,10 @@ def float_pressed(channel):
 			break
 		_time.sleep(1)
 	# The float switch is considered active
-	if check == True:
+	while check == True:
+		strobe_light(0.5,4)
 		send_txt('Float switch has been activated: Please confirm water present at the end of the bay, Reply yes/no within 30 minutes',NUM)
-		confirmation = receive_confirmation(30*60)
+		confirmation = receive_confirmation(10*60)
 		if confirmation == True:
 			send_txt('Water Confirmed: float set to inactive, reset when ready',NUM)
 			try:
@@ -240,6 +239,8 @@ def float_pressed(channel):
 			send_txt('Continuing detection',NUM)
 		elif confirmation == None:
 			send_txt('Timer ran out: continuing detection',NUM)
+			if GPIO.input(17) == 1:
+				check = False
 
 # Fucntion called when button is pressed
 # Used to reset the water sensor between bays
@@ -258,12 +259,14 @@ def button_pressed(channel):
 		_time.sleep(1)
 	# The button is considered pressed
 	if check == True:
+		strobe_light(0.1,2)
 		send_txt('Button has been pressed. Do you wish to reset the Float switch? Reply yes/no within 2 minutes',NUM)
 		# Start a confirmation receive for x seconds
 		confirmation = receive_confirmation(60*2)
 		if confirmation == True:
 			print("Resetting the float switch detection")
 			try:
+				strobe_light(0.2,5)
 				GPIO.add_event_detect(17, GPIO.FALLING, callback=float_pressed, bouncetime=1500) 
 				logging.info("Event detect enabled for float switch")
 				send_txt('Float switch has been activated',NUM)
@@ -321,6 +324,14 @@ def main():
 								send_txt('The number specified does not meet the required format: +614xxxxxxxx', txt_number)
 						else:
 							send_txt('For a number change request please use the following format: ID change #number, Example: 0005 change #+61457242753', txt_number)
+					elif txt_msg.find("status") != -1 or txt_msg.find("Status") != -1:
+						logging.info("Status requested")
+						if GPIO.input(17) == 0:
+							send_txt('Status Report:\nFloat switch triggered', txt_number)
+						elif GPIO.input(17) == 1:
+							send_txt('Status Report:\nFloat switch not triggered', txt_number)
+						else:
+							send_txt('Status Report:\nFloat switch in undefined state please check and restart the device', txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
