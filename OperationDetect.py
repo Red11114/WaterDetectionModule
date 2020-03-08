@@ -19,9 +19,6 @@ OPERATE_SMS_MODE = 'AT+CMGF=1\r'
 RECEIVE_SMS = 'AT+CMGL="REC UNREAD"\r'
 CLEAR_READ = 'AT+CMGD=1,1'
 
-# Message to report after water detection
-MSG = 'The float switch has been activated'
-
 # Serial settings
 SERIAL_PORT = '/dev/ttyUSB2'
 SERIAL_RATE = 115200
@@ -84,6 +81,7 @@ def warmup():
 	GPIO.add_event_detect(17, GPIO.FALLING, callback=float_pressed, bouncetime=1500)  
 	GPIO.add_event_detect(27, GPIO.FALLING, callback=button_pressed, bouncetime=1500)
 	strobe_light(0.1,2)
+
 	if not ser.is_open:
 		print("open serial")
 		ser.open()
@@ -132,19 +130,22 @@ def receive_txt():
 	_time.sleep(1)
 	reply = ser.read(ser.in_waiting).decode()
 	print("RECEIVE_SMS Response: %s" % reply)
+	logging.info("RECEIVE_SMS Response: %s" % reply)
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
+		logging.info('Found CMGL: in serial response')
 		# Split the reply inot individual responses
 		reply_lines = reply.split("\n")
-		print("reply_lines %s" % reply_lines)
+		print("Reply_lines %s" % reply_lines)
 		# Create info list of received SMS response
 		for i in range(len(reply_lines)):
 			if reply_lines[i].find("CMGL: ") != -1:
 				response_index = i
 				print("response at index: %s"% i)
 		info_list = reply_lines[response_index]
+		logging.info('SMS info list from serial: %s' % info_list)
 		info_list = info_list.split(",")
-		print("info_list: %s" % info_list)
+		print("Info_list: %s" % info_list)
 		# Find number of txts in mem, the sender's number and the text msg
 		txt_num = info_list[0]
 		txt_num = txt_num[len(txt_num)-1:len(txt_num)]
@@ -182,15 +183,20 @@ def receive_confirmation(timer):
 				# Check what command was sent
 				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
 					confirming = False
+					logging.info('Confirmed yes')
 					return True
 				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
 					confirming = False
+					logging.info('Confirmed no')
 					return False
 				else:
+					logging.warning("Confirmation not correctly spelt")
 					send_txt('Confirmation spelt incorrectly',txt_number)
-					logging.warning("error: confirmation not correctly spelt")
+					
 			else:
-				send_txt('Reply in format: ID yes/no, Example: 0005 yes',txt_number)
+				logging.warning('Incorrect format, reply: %s yes/no' % ID)
+				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
+				
 		_time.sleep(1)
 	logging.info("TIMER OUT")
 	confirming = False
@@ -216,19 +222,21 @@ def float_pressed(channel):
 	check = False
 	check_time = _time.perf_counter()
 	false_detect_time = 5
+	confirmation_time = 10
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0 and check == False:
 		if _time.perf_counter() - check_time > false_detect_time:
+			logging.info("The float was activated for %s seconds" % false_detect_time)
 			check = True
 			break
 		_time.sleep(1)
 	# The float switch is considered active
 	while check == True:
 		strobe_light(0.5,4)
-		send_txt('Float switch has been activated: Please confirm water present at the end of the bay, Reply yes/no within 30 minutes',NUM)
-		confirmation = receive_confirmation(10*60)
+		send_txt('Float switch has been activated on module %s: Please confirm water present at the end of the bay, Reply: %s yes/no, within %s minutes' % (ID, ID, confirmation_time),NUM)
+		confirmation = receive_confirmation(confirmation_time*60)
 		if confirmation == True:
-			send_txt('Water Confirmed: float set to inactive, reset when ready',NUM)
+			send_txt('Water Confirmed for module %s: float set to inactive, reset when ready' % ID,NUM)
 			try:
 				GPIO.remove_event_detect(17)
 				logging.info("Event detect disabled for float switch")
@@ -236,33 +244,35 @@ def float_pressed(channel):
 				logging.warning("Event detect could not be disabled for float switch")
 				pass
 		elif confirmation == False:
-			send_txt('Continuing detection',NUM)
+			send_txt('Continuing detection on module %s' % ID,NUM)
+			logging.info('Continuing detection on module %s' % ID)
 		elif confirmation == None:
-			send_txt('Timer ran out: continuing detection',NUM)
+			send_txt('Timer ran out on module %s: continuing detection' % ID,NUM)
 			if GPIO.input(17) == 1:
 				check = False
 
 # Fucntion called when button is pressed
 # Used to reset the water sensor between bays
 def button_pressed(channel):
+	global ID
 	global NUM
-	logging.info("The button has been Activated")
 	# initialise active check time
 	check = False
 	check_time = _time.perf_counter()
 	false_detect_time = 4
+	confirmation_time = 2
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(27) == 0 and check == False:
 		if _time.perf_counter() - check_time > false_detect_time:
-			logging.info("The button was held for 4 seconds")
+			logging.info("The button was held for %s seconds" % false_detect_time)
 			check = True
 		_time.sleep(1)
 	# The button is considered pressed
 	if check == True:
 		strobe_light(0.1,2)
-		send_txt('Button has been pressed. Do you wish to reset the Float switch? Reply yes/no within 2 minutes',NUM)
+		send_txt('Button has been pressed on module %s, Do you wish to reset the Float switch? Reply: %s yes/no, within %s minutes' % (ID, ID, confirmation_time),NUM)
 		# Start a confirmation receive for x seconds
-		confirmation = receive_confirmation(60*2)
+		confirmation = receive_confirmation(confirmation_time*2)
 		if confirmation == True:
 			print("Resetting the float switch detection")
 			try:
@@ -293,7 +303,6 @@ def main():
 			# check if there has been a text received
 			txt_number, txt_msg = receive_txt()
 			if txt_msg != None:
-				logging.info("Text received")
 				# make sure the text include the modules ID
 				if txt_msg.find(ID) != -1:
 					logging.info("Text has correct ID for module")
@@ -308,33 +317,36 @@ def main():
 							print("Number :%s" % new_num)
 							# Check if the format of the number is correct
 							if len(new_num) == len(NUM) and new_num.find('+614') != -1: 
-								send_txt('Setting main number to %s\nconfirm yes/no within 1 minute' % new_num, txt_number)
+								send_txt('Setting main number on module %s to %s\nconfirm yes/no within 1 minute' % (ID, new_num), txt_number)
 								# Start a confirmation receive for x seconds
+								strobe_light(0.5,1)
 								confirmation = receive_confirmation(60)
 								if confirmation == True:
-									send_txt('Number Change Accepted, new number: %s' % new_num, txt_number)
+									send_txt('Number Change Accepted for module %s, new number: %s' % (ID, new_num), txt_number)
 									NUM = new_num
 									write_settings()
 									print("New Number set to %s" % NUM)
 								elif confirmation == False:
-									send_txt('Number Change Declined', txt_number)
+									send_txt('Number Change Declined for module %s' % ID, txt_number)
 								elif confirmation == None:
-									send_txt('Timer ran out', txt_number)
+									send_txt('Timer ran out when changing number for module %s' % ID, txt_number)
 							else:
 								send_txt('The number specified does not meet the required format: +614xxxxxxxx', txt_number)
 						else:
-							send_txt('For a number change request please use the following format: ID change #number, Example: 0005 change #+61457242753', txt_number)
+							send_txt('For a number change request please use the following format: %s change #+614number' % ID, txt_number)
 					elif txt_msg.find("status") != -1 or txt_msg.find("Status") != -1:
 						logging.info("Status requested")
+						strobe_light(0.5,1)
 						if GPIO.input(17) == 0:
-							send_txt('Status Report:\nFloat switch triggered', txt_number)
+							send_txt('Status Report for module %s:\nFloat switch triggered' % ID, txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report:\nFloat switch not triggered', txt_number)
+							send_txt('Status Report for module %s:\nFloat switch not triggered' % ID, txt_number)
 						else:
-							send_txt('Status Report:\nFloat switch in undefined state please check and restart the device', txt_number)
+							send_txt('Status Report for module %s:\nFloat switch in undefined state please check and restart the device' % ID, txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
+						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID)
 		_time.sleep(2)
 
 if __name__ == "__main__":
