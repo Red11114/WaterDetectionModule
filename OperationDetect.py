@@ -1,15 +1,18 @@
+#!/bin/bash
 # A script that listens for SMS's with commands and replys accordingly
 # will detect water and alert the user via the number saved
 
-# Import required packages
-import serial
-import RPi.GPIO as GPIO
+# Import builtin packages
 import os, stat
 import logging
 from datetime import datetime
 import json
 import time as _time
 import threading
+
+# Import installed packages
+import RPi.GPIO as GPIO
+import serial
 
 ID = ""
 NUM = ""
@@ -109,10 +112,10 @@ def send_txt(message,number):
 	if ser.is_open:
 		logging.info("SMS SENT: %s" % message)
 		print("SMS SENT: %s" % message)
-		# sendCommand(OPERATE_SMS_MODE)
-		# sendCommand(SEND_SMS)
-		# sendCommand(message)
-		# sendCommand('\x1A')	#sending CTRL-Z
+		sendCommand(OPERATE_SMS_MODE)
+		sendCommand(SEND_SMS)
+		sendCommand(message)
+		sendCommand('\x1A')	#sending CTRL-Z
 		ser.close()
 		logging.info("close serial")
 
@@ -126,16 +129,17 @@ def receive_txt():
 		ser.open()
 	# Check if there is any unread texts
 	sendCommand(RECEIVE_SMS)
-	sendCommand('\x1A')
+	# sendCommand('\x1A')
 	_time.sleep(1)
 	reply = ser.read(ser.in_waiting).decode()
-	print("RECEIVE_SMS Response: %s" % reply)
-	logging.info("RECEIVE_SMS Response: %s" % reply)
+	# Split the reply inot individual responses
+	reply_lines = reply.split("\n")
+	print("RECEIVE_SMS Response: %s" % reply_lines)
+	logging.info("RECEIVE_SMS Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
 		logging.info('Found CMGL: in serial response')
-		# Split the reply inot individual responses
-		reply_lines = reply.split("\n")
+		
 		print("Reply_lines %s" % reply_lines)
 		# Create info list of received SMS response
 		for i in range(len(reply_lines)):
@@ -154,10 +158,10 @@ def receive_txt():
 		number = number[1:len(number)-1]
 		print("NUMBER: %s" % number)
 		text_msg = reply_lines[response_index+1]
+		logging.info("TEXT: %s" % text_msg)
 		print("TEXT: %s" % text_msg)
 		# Clear the modems SMS memory
 		sendCommand(CLEAR_READ)
-		sendCommand('\x1A')
 		reply = ser.read(ser.in_waiting)
 		return number, text_msg
 	return None,None
@@ -184,6 +188,7 @@ def receive_confirmation(timer):
 				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
 					confirming = False
 					logging.info('Confirmed yes')
+					strobe_light(0.2,5)
 					return True
 				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
 					confirming = False
@@ -222,7 +227,7 @@ def float_pressed(channel):
 	check = False
 	check_time = _time.perf_counter()
 	false_detect_time = 5
-	confirmation_time = 10
+	confirmation_time = 30
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0 and check == False:
 		if _time.perf_counter() - check_time > false_detect_time:
@@ -240,6 +245,7 @@ def float_pressed(channel):
 			try:
 				GPIO.remove_event_detect(17)
 				logging.info("Event detect disabled for float switch")
+				check = False
 			except:
 				logging.warning("Event detect could not be disabled for float switch")
 				pass
@@ -259,7 +265,7 @@ def button_pressed(channel):
 	# initialise active check time
 	check = False
 	check_time = _time.perf_counter()
-	false_detect_time = 4
+	false_detect_time = 5
 	confirmation_time = 2
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(27) == 0 and check == False:
@@ -272,11 +278,10 @@ def button_pressed(channel):
 		strobe_light(0.1,2)
 		send_txt('Button has been pressed on module %s, Do you wish to reset the Float switch? Reply: %s yes/no, within %s minutes' % (ID, ID, confirmation_time),NUM)
 		# Start a confirmation receive for x seconds
-		confirmation = receive_confirmation(confirmation_time*2)
+		confirmation = receive_confirmation(confirmation_time*60)
 		if confirmation == True:
 			print("Resetting the float switch detection")
 			try:
-				strobe_light(0.2,5)
 				GPIO.add_event_detect(17, GPIO.FALLING, callback=float_pressed, bouncetime=1500) 
 				logging.info("Event detect enabled for float switch")
 				send_txt('Float switch has been activated',NUM)
@@ -317,7 +322,7 @@ def main():
 							print("Number :%s" % new_num)
 							# Check if the format of the number is correct
 							if len(new_num) == len(NUM) and new_num.find('+614') != -1: 
-								send_txt('Setting main number on module %s to %s\nconfirm yes/no within 1 minute' % (ID, new_num), txt_number)
+								send_txt('Setting main number on module %s to %s. Confirm: 0001 yes/no within 1 minute' % (ID, new_num), txt_number)
 								# Start a confirmation receive for x seconds
 								strobe_light(0.5,1)
 								confirmation = receive_confirmation(60)
@@ -338,15 +343,15 @@ def main():
 						logging.info("Status requested")
 						strobe_light(0.5,1)
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s:\nFloat switch triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch triggered' % ID, txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s:\nFloat switch not triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch not triggered' % ID, txt_number)
 						else:
-							send_txt('Status Report for module %s:\nFloat switch in undefined state please check and restart the device' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device' % ID, txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
-						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID)
+						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
 		_time.sleep(2)
 
 if __name__ == "__main__":

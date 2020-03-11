@@ -1,0 +1,13 @@
+[Unit]
+Description=Detection service
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash /home/pi/WaterDetectionModule/services/startup-detection.sh
+WorkingDirectory=/home/pi/WaterDetectionModule
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target

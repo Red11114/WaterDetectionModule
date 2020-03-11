@@ -142,15 +142,20 @@ Install **pip** first
 ```
 sudo apt-get install python3-pip
 ```
-Then install **virtualenv** using pip3
+Then install **venv**
 ```
-sudo pip3 install virtualenv 
+sudo apt install python3-venv
 ```
+**The following steps can be skipped by typing**
+```
+source setup-venv.sh
+```
+**It will create the venv and install all packages**
+
 Now create a virtual environment 
 ```
-virtualenv venv
+python3 -m venv env
 ```
->you can use any name insted of **venv**
 
 ### Activate your virtual environment:
 
@@ -158,7 +163,7 @@ When developing, the code must be run using the virtual environment
 
 To activate the virtual environment type
 ```
-source venv/bin/activate
+source env/bin/activate
 ```
 To deactivate type
 ```
@@ -172,7 +177,7 @@ First activate the virtual environment
 pip install -r requirements.txt
 ```
 
-To check currently install packages type
+To check currently installed packages type
 ```
 pip freeze
 ```
