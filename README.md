@@ -115,6 +115,38 @@ Example:
 ```
 ssh pi@testpi2.local
 ```
+### Enable SPI and I2C
+
+```
+sudo raspi-config
+```
+
+Select Interface Options > I2C/SPI
+
+Save the changes and reboot
+
+```
+sudo reboot
+```
+
+### Check I2C and SPI connection
+
+For 12C run the following command and compare with result
+```
+sudo i2cdetect -y 1
+```
+Result:
+```
+
+```
+For SPI run the following command and compare with result
+```
+ls -l /dev/spidev*
+```
+Result:
+```
+
+```
 
 ### Get Updates
 
@@ -176,7 +208,6 @@ First activate the virtual environment
 ```
 pip install -r requirements.txt
 ```
-
 To check currently installed packages type
 ```
 pip freeze
