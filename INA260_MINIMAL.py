@@ -1,5 +1,7 @@
+# Import installed packages
 import smbus
 
+# Define class of driver
 class INA260:
 	
 	_INA260_DEVICE_ADDRESS   = 0x44
