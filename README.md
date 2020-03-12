@@ -64,6 +64,11 @@ ssh pi@raspberrypi.local
 ```
 If prompted to continue connecting respond "yes"
 
+In VSCode with rmate installed
+```
+ssh -R 52698:127.0.0.1:52698 pi@hostname
+```
+
 #### Windows:
 Install Putty
 

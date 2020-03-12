@@ -133,7 +133,7 @@ def receive_txt():
 	# Check if there is any unread texts
 	sendCommand(RECEIVE_SMS)
 	# sendCommand('\x1A')
-	_time.sleep(1)
+	_time.sleep(0.2)
 	reply = ser.read(ser.in_waiting).decode()
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
@@ -229,7 +229,7 @@ def float_pressed(channel):
 	# initialise active check time
 	check = False
 	check_time = _time.perf_counter()
-	false_detect_time = 5
+	false_detect_time = 20
 	confirmation_time = 30
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0 and check == False:
