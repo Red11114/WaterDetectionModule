@@ -343,11 +343,11 @@ def main():
 						logging.info("Status requested")
 						strobe_light(0.5,1)
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s: Float switch triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch triggered, Saved number is %s' % (ID,NUM), txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s: Float switch not triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch not triggered, Saved number is %s' % (ID,NUM), txt_number)
 						else:
-							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device' % ID, txt_number)
+							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,NUM), txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
