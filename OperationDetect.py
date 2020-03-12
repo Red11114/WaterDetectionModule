@@ -14,6 +14,9 @@ import threading
 import RPi.GPIO as GPIO
 import serial
 
+# Import drivers
+from INA260_MINIMAL import INA260
+
 ID = ""
 NUM = ""
 
@@ -134,18 +137,19 @@ def receive_txt():
 	reply = ser.read(ser.in_waiting).decode()
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
-	print("RECEIVE_SMS Response: %s" % reply_lines)
-	logging.info("RECEIVE_SMS Response: %s" % reply_lines)
+	print("MODEM Response: %s" % reply_lines)
+	logging.info("MODEM Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
 		logging.info('Found CMGL: in serial response')
 		
 		print("Reply_lines %s" % reply_lines)
-		# Create info list of received SMS response
+		# Find index of response that contains the SMS
 		for i in range(len(reply_lines)):
 			if reply_lines[i].find("CMGL: ") != -1:
 				response_index = i
 				print("response at index: %s"% i)
+		# Extract the SMS info
 		info_list = reply_lines[response_index]
 		logging.info('SMS info list from serial: %s' % info_list)
 		info_list = info_list.split(",")
@@ -197,7 +201,6 @@ def receive_confirmation(timer):
 				else:
 					logging.warning("Confirmation not correctly spelt")
 					send_txt('Confirmation spelt incorrectly',txt_number)
-					
 			else:
 				logging.warning('Incorrect format, reply: %s yes/no' % ID)
 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
@@ -300,10 +303,26 @@ def main():
 	global confirming
 	
 	warmup()
-	# Enter loop for receiving SMS's
+	
 	confirming = False
+	temp_voltage = INA260.get_bus_voltage
+
+	# Enter loop for receiving SMS's
 	while True:
 		if confirming == False:
+			
+			# Check Voltage and send text if low
+			if INA260.get_bus_voltage < temp_voltage - 0.1:
+				if temp_voltage < 11.60:
+					send_txt("Module %s: Low Battery Warning-%sV" % (ID,temp_voltage),NUM)
+					logging.warning("Voltage LOW: %s" % INA260.get_bus_voltage)
+				elif 11.40 < temp_voltage < 11.60 :
+					send_txt("Module %s: Very Low Battery Warning-%sV" % (ID,temp_voltage),NUM)
+					logging.warning("Voltage VERY LOW: %s" % INA260.get_bus_voltage)
+				else:
+					logging.info("Voltage: %s" % INA260.get_bus_voltage)
+				# Assign new temp voltage
+				temp_voltage = INA260.get_bus_voltage
 			print("Waiting for SMS")
 			# check if there has been a text received
 			txt_number, txt_msg = receive_txt()
@@ -311,7 +330,7 @@ def main():
 				# make sure the text include the modules ID
 				if txt_msg.find(ID) != -1:
 					logging.info("Text has correct ID for module")
-					# check if the text includes "change"
+					# check if the text includes "change" or "status"
 					if txt_msg.find("change") != -1 or txt_msg.find("Change") != -1:
 						logging.info("Change number requested")
 						# Find the number after the "#"
@@ -342,15 +361,16 @@ def main():
 					elif txt_msg.find("status") != -1 or txt_msg.find("Status") != -1:
 						logging.info("Status requested")
 						strobe_light(0.5,1)
+						# Return status of the device
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s: Float switch triggered, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s: Float switch not triggered, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch not triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 						else:
-							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 					else:
-						print("Correct ID received but command not recognised")
-						logging.warning("Correct ID received but command not recognised")
+						print("Correct ID(%s) received but command not recognised" % ID)
+						logging.warning("Correct ID(%s) received but command not recognised" % ID)
 						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
 		_time.sleep(2)
 
