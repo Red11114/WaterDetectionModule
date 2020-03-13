@@ -342,12 +342,13 @@ def main():
 					elif txt_msg.find("status") != -1 or txt_msg.find("Status") != -1:
 						logging.info("Status requested")
 						strobe_light(0.5,1)
+						# Return status of the device
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s: Float switch triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s: Float switch not triggered' % ID, txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch not triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 						else:
-							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device' % ID, txt_number)
+							send_txt('Status Report for module %s: Voltage=%s, Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
