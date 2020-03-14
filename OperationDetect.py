@@ -70,9 +70,9 @@ def write_settings():
 def warmup():
 	# Setup logging
 	datetime_object = datetime.now()
-	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
+	print("Current Date: %s-%s-%s, and Time: %s:%s:%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
 	try:
-		logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+		logging.basicConfig(filename="logs/%s-%s-%s_%s:%s:%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 	except:
 		print("Log file could not be made")
 		logging.error("Log file could not be made")
@@ -112,10 +112,10 @@ def send_txt(message,number):
 	if ser.is_open:
 		logging.info("SMS SENT: %s" % message)
 		print("SMS SENT: %s" % message)
-		sendCommand(OPERATE_SMS_MODE)
-		sendCommand(SEND_SMS)
-		sendCommand(message)
-		sendCommand('\x1A')	#sending CTRL-Z
+		# sendCommand(OPERATE_SMS_MODE)
+		# sendCommand(SEND_SMS)
+		# sendCommand(message)
+		# sendCommand('\x1A')	#sending CTRL-Z
 		ser.close()
 		logging.info("close serial")
 
@@ -135,18 +135,16 @@ def receive_txt():
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
 	print("RECEIVE_SMS Response: %s" % reply_lines)
-	if reply_lines != ['AT+CMGL="REC UNREAD"\r\r', 'OK\r', '']:
-		logging.info("RECEIVE_SMS Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
-	if reply.find("CMGL: ") != -1:
-		logging.info('Found CMGL: in serial response')
+	if "cmgl:" in reply.lower():
+		logging.info('Found CMGL: in serial response: %s' % reply_lines)
 		
 		print("Reply_lines %s" % reply_lines)
 		# Create info list of received SMS response
 		for i in range(len(reply_lines)):
 			if reply_lines[i].find("CMGL: ") != -1:
 				response_index = i
-				print("response at index: %s"% i)
+				print("Unread message at index: %s"% i)
 		info_list = reply_lines[response_index]
 		logging.info('SMS info list from serial: %s' % info_list)
 		info_list = info_list.split(",")
@@ -183,22 +181,21 @@ def receive_confirmation(timer):
 		txt_number, txt_msg = receive_txt()
 		if txt_msg != None:
 			# Check if the Modules ID number is included
-			if (txt_msg.find(ID) != -1):
+			if ID in txt_msg:
 				logging.info("Received confirmation reply: %s" % txt_msg)
 				# Check what command was sent
-				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
+				if "yes" in txt_msg.lower():
 					confirming = False
 					logging.info('Confirmed yes')
 					strobe_light(0.2,5)
 					return True
-				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
+				elif "no" in txt_msg.lower():
 					confirming = False
 					logging.info('Confirmed no')
 					return False
 				else:
 					logging.warning("Confirmation not correctly spelt")
 					send_txt('Confirmation spelt incorrectly',txt_number)
-					
 			else:
 				logging.warning('Incorrect format, reply: %s yes/no' % ID)
 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
@@ -306,20 +303,20 @@ def main():
 	confirming = False
 	while True:
 		if confirming == False:
-			print("Waiting for SMS")
-			if log % 3 == 0:
+			if log % 10 == 0:
+				print("waiting for SMS")
 				logging.info("Waiting for SMS")
 			# check if there has been a text received
 			txt_number, txt_msg = receive_txt()
 			if txt_msg != None:
 				# make sure the text include the modules ID
-				if txt_msg.find(ID) != -1:
+				if ID in txt_msg:
 					logging.info("Text has correct ID for module")
 					# check if the text includes "change"
-					if txt_msg.find("change") != -1 or txt_msg.find("Change") != -1:
+					if "change" in txt_msg.lower():
 						logging.info("Change number requested")
 						# Find the number after the "#"
-						if txt_msg.find("#") != -1:
+						if "#" in txt_msg:
 							new_num = txt_msg.split("#")
 							new_num = new_num[len(new_num)-1]
 							new_num = new_num[0:12]
@@ -343,7 +340,7 @@ def main():
 								send_txt('The number specified does not meet the required format: +614xxxxxxxx', txt_number)
 						else:
 							send_txt('For a number change request please use the following format: %s change #+614number' % ID, txt_number)
-					elif txt_msg.find("status") != -1 or txt_msg.find("Status") != -1:
+					elif "status" in txt_msg.lower():
 						logging.info("Status requested")
 						strobe_light(0.5,1)
 						# Return status of the device
@@ -358,7 +355,7 @@ def main():
 						logging.warning("Correct ID received but command not recognised")
 						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
 		log += 1
-		_time.sleep(10)
+		_time.sleep(2)
 
 if __name__ == "__main__":
 	try:
