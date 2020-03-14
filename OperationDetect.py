@@ -96,7 +96,7 @@ def warmup():
 # Function for sending AT commands
 def sendCommand(command): 
 	ser.write(command.encode())
-	logging.info("Send command to LTE module %s" % command)
+	# logging.info("Send command to LTE module %s" % command)
 	_time.sleep(0.2)
 
 # Function for sending a Text
@@ -122,7 +122,7 @@ def send_txt(message,number):
 # Function for receiving a Text. 
 # will respond accordingly?
 def receive_txt():
-	logging.info("Attempt to receive text")
+	# logging.info("Attempt to receive text")
 	# Open serial if required
 	if not ser.is_open:
 		logging.info("Open serial")
@@ -135,7 +135,8 @@ def receive_txt():
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
 	print("RECEIVE_SMS Response: %s" % reply_lines)
-	logging.info("RECEIVE_SMS Response: %s" % reply_lines)
+	if reply_lines != ['AT+CMGL="REC UNREAD"\r\r', 'OK\r', '']:
+		logging.info("RECEIVE_SMS Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
 		logging.info('Found CMGL: in serial response')
@@ -298,6 +299,7 @@ def main():
 	global ID
 	global NUM
 	global confirming
+	log = 0
 	
 	warmup()
 	# Enter loop for receiving SMS's
@@ -305,6 +307,8 @@ def main():
 	while True:
 		if confirming == False:
 			print("Waiting for SMS")
+			if log % 3 == 0:
+				logging.info("Waiting for SMS")
 			# check if there has been a text received
 			txt_number, txt_msg = receive_txt()
 			if txt_msg != None:
@@ -344,16 +348,17 @@ def main():
 						strobe_light(0.5,1)
 						# Return status of the device
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s: Voltage=%s, Float switch triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
+							send_txt('Status Report for module %s: Float switch triggered, Saved number is %s' % (ID,NUM), txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s: Voltage=%s, Float switch not triggered, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
+							send_txt('Status Report for module %s: Float switch not triggered, Saved number is %s' % (ID,NUM), txt_number)
 						else:
-							send_txt('Status Report for module %s: Voltage=%s, Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,INA260.get_bus_voltage,NUM), txt_number)
+							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,NUM), txt_number)
 					else:
 						print("Correct ID received but command not recognised")
 						logging.warning("Correct ID received but command not recognised")
 						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
-		_time.sleep(2)
+		log += 1
+		_time.sleep(10)
 
 if __name__ == "__main__":
 	try:
