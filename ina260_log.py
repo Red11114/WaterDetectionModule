@@ -1,6 +1,5 @@
 from INA260_MINIMAL import INA260
 import time
-import logging
 from datetime import datetime
 
 def main():
@@ -22,8 +21,8 @@ def main():
         datetime_object = datetime.now()
         bus_voltage = ina260.get_bus_voltage()
         charge_current = ina260.get_current()
-        f.write("%s:%s:%s,%0.4f,%0.4f\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,bus_voltage,charge_current))
-        print("%s:%s:%s,%0.4f,%0.4f" % (datetime_object.hour,datetime_object.minute,datetime_object.second,bus_voltage,charge_current))
+        f.write("%s:%s:%s%s,%0.4f,%0.4f\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,datetime_object.microsecond,bus_voltage,charge_current))
+        print("%s:%s:%s%s,%0.4f,%0.4f" % (datetime_object.hour,datetime_object.minute,datetime_object.second,datetime_object.microsecond,bus_voltage,charge_current))
         time.sleep(0.1)
 
 if __name__ == '__main__':  

@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 
 print("importing complete")
-fname='21-3-2020:16-49-3_power.txt'
+fname='/home/andrew/Documents/WaterDetectionModule/21-3-2020:17-57-40_power.txt'
 
 data = {
     "time" : [],
@@ -10,7 +10,7 @@ data = {
     "current" : []
 }
 first = True
-with open('/home/pi/WaterDetectionModule/logs/%s'% fname, "r") as f:
+with open(fname, "r") as f:
     lines = f.readlines()
 
     for line in lines:
@@ -21,13 +21,12 @@ with open('/home/pi/WaterDetectionModule/logs/%s'% fname, "r") as f:
             data["time"].append(info[0])
             data["voltage"].append(float(info[1]))
             data["current"].append(float(info[2]))
-            print(line)
+            # print(line)
 
 plt.figure(0)
-
-plt.plot(data["current"],data["voltage"])
-
+plt.plot(data["time"],data["current"])
 plt.show()
+plt.savefig('Current vs Time.png')
 
-print(data["time"])
-print(data["voltage"])
+# print(data["time"])
+# print(data["voltage"])
