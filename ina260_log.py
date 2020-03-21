@@ -10,21 +10,21 @@ def main():
     time.sleep(1)
     datetime_object = datetime.now()
     print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
-    try:
-        logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_power.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-    except:
-        print("Log file could not be made")
-        logging.error("Log file could not be made")
 
+    f = open("logs/%s-%s-%s:%s-%s-%s_power.txt" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second),"a")
+    # logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_power.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+    
     print("Time,Bus Voltage (Volts),Charge Current (Amps)")
-    logging.info("Time,Bus Voltage (Volts),Charge Current (Amps)")
+    f.write("Time,Bus Voltage (Volts),Charge Current (Amps)\n")
+    # logging.info("Time,Bus Voltage (Volts),Charge Current (Amps)")
     
     while True:
+        datetime_object = datetime.now()
         bus_voltage = ina260.get_bus_voltage()
         charge_current = ina260.get_current()
-        logging.info("%0.4f,%0.4f" % (bus_voltage,charge_current))
-        print("%0.4f,%0.4f" % (bus_voltage,charge_current))
+        f.write("%s:%s:%s,%0.4f,%0.4f\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,bus_voltage,charge_current))
+        print("%s:%s:%s,%0.4f,%0.4f" % (datetime_object.hour,datetime_object.minute,datetime_object.second,bus_voltage,charge_current))
         time.sleep(0.1)
-	
+
 if __name__ == '__main__':  
     main()
