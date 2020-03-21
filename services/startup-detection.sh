@@ -15,5 +15,4 @@ else
 fi
 
 # Run the main script
-python3 OperationDetect.py
-python3 ina260.log.py
+python3 services/parallel_processing.py
