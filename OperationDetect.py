@@ -72,10 +72,10 @@ def warmup():
 	datetime_object = datetime.now()
 	print("Current Date: %s-%s-%s, and Time: %s:%s:%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
 	try:
-		logging.basicConfig(filename="logs/%s-%s-%s_%s:%s:%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+		logging.basicConfig(filename="logs/%s-%s-%s_%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+		logging.info("Log file made: logs/%s-%s-%s_%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
 	except:
 		print("Log file could not be made")
-		logging.error("Log file could not be made")
 
 	logging.info("Start warmup")
 	# Load settings from settings_.json
@@ -112,10 +112,10 @@ def send_txt(message,number):
 	if ser.is_open:
 		logging.info("SMS SENT: %s" % message)
 		print("SMS SENT: %s" % message)
-		# sendCommand(OPERATE_SMS_MODE)
-		# sendCommand(SEND_SMS)
-		# sendCommand(message)
-		# sendCommand('\x1A')	#sending CTRL-Z
+		sendCommand(OPERATE_SMS_MODE)
+		sendCommand(SEND_SMS)
+		sendCommand(message)
+		sendCommand('\x1A')	#sending CTRL-Z
 		ser.close()
 		logging.info("close serial")
 
@@ -124,6 +124,7 @@ def send_txt(message,number):
 def receive_txt():
 	# logging.info("Attempt to receive text")
 	# Open serial if required
+	logging.info("Try receiving SMS")
 	if not ser.is_open:
 		logging.info("Open serial")
 		ser.open()
@@ -135,6 +136,7 @@ def receive_txt():
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
 	print("RECEIVE_SMS Response: %s" % reply_lines)
+	logging.info("RECEIVE_SMS Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if "cmgl:" in reply.lower():
 		logging.info('Found CMGL: in serial response: %s' % reply_lines)
@@ -303,7 +305,7 @@ def main():
 	confirming = False
 	while True:
 		if confirming == False:
-			if log % 10 == 0:
+			if log % 30 == 0:
 				print("waiting for SMS")
 				logging.info("Waiting for SMS")
 			# check if there has been a text received

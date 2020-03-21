@@ -185,6 +185,22 @@ To save currently installed packages to a new file type
 ```
 pip freeze > requirements.txt
 ```
+## Boot settings
+
+To add and enable services on boot use systemd
+
+```
+sudo cp services/detection.service /etc/systemd/system
+```
+
+Then enable them to start on boot
+
+Or quick start them only on this cycle
+
+```
+sudo systemctl enable detection.service
+sudo systemctl start detection.service
+```
 
 ## Running the test script
 
