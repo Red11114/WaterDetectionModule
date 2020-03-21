@@ -1,8 +1,9 @@
 #!/bin/bash
 import matplotlib.pyplot as plt
-
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                               AutoMinorLocator)
 print("importing complete")
-fname='/home/andrew/Documents/WaterDetectionModule/21-3-2020:17-57-40_power.txt'
+fname='/home/andrew/Documents/WaterDetectionModule/21-3-2020:23-8-30_power.txt'
 
 data = {
     "time" : [],
@@ -23,8 +24,20 @@ with open(fname, "r") as f:
             data["current"].append(float(info[2]))
             # print(line)
 
-plt.figure(0)
-plt.plot(data["time"],data["current"])
+major_ticks = []
+for i in data["time"]:
+    times = i.split(":")
+    print(times)
+    if int(times[1]) % 10 == 0:
+        major_ticks.append(int(times[1]))
+
+fig, ax = plt.subplots()
+ax.plot(data["time"],data["current"])
+ax.xaxis.set_major_locator(MultipleLocator(50))
+# ax.xaxis.set_major_formatter(FormatStrFormatter('%s:%s:%s'))
+plt.xticks(rotation='vertical')
+plt.subplots_adjust(bottom=0.3)
+# ax.xaxis.set_horizontalalignment('right')
 plt.show()
 plt.savefig('Current vs Time.png')
 
