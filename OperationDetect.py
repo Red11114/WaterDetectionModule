@@ -315,6 +315,7 @@ def main():
 	warmup()
 	
 	confirming = False
+	warned = False
 	temp_voltage = ina260.get_bus_voltage()
 
 	# Enter loop for receiving SMS's
@@ -323,11 +324,14 @@ def main():
 			current_voltage = ina260.get_bus_voltage()
 			# Check Voltage and send text if low
 			if current_voltage < temp_voltage - 0.1:
-				if current_voltage < 11.60:
-					send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+				if 12.50 <= current_voltage:
+					warned = False
+				elif 11.60 < current_voltage <= 11.80:
 					logging.warning("Voltage LOW: %s" % current_voltage)
-				elif 11.40 < current_voltage < 11.60 :
-					send_txt("Module %s: Very Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+				elif current_voltage <= 11.60 :
+					if warned == False:
+						send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+						warned = True
 					logging.warning("Voltage VERY LOW: %s" % current_voltage)
 				else:
 					logging.info("Voltage: %s" % current_voltage)
