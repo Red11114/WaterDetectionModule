@@ -334,7 +334,7 @@ def main():
 					
 				# Assign new temp voltage
 				temp_voltage = ina260.get_bus_voltage()
-			if log % 30 == 0:
+			if log % 3 == 0:
 				print("waiting for SMS")
 				logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
 			# check if there has been a text received
@@ -387,7 +387,7 @@ def main():
 						logging.warning("Correct ID(%s) received but command not recognised" % ID)
 						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
 		log += 1
-		_time.sleep(0.2)
+		_time.sleep(10)
 
 if __name__ == "__main__":
 	try:
