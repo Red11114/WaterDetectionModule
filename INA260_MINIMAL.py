@@ -1,5 +1,5 @@
 # Import installed packages
-import smbus
+import smbus2 as smbus
 
 # Define class of driver
 class INA260:
