@@ -38,9 +38,9 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
-GPIO.setup(35, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
-GPIO.setup(37, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
+# GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
+# GPIO.setup(35, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+# GPIO.setup(37, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 GPIO.setup(22, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 
 # Function to load in settings from a json file
@@ -74,30 +74,30 @@ def write_settings():
 	with open('settings_.json', 'w') as outfile:
 		json.dump(data, outfile,indent=4)
 
-def sleep_LTE(time):
-	# set SMS module to sleep
-	GPIO.output(35, GPIO.HIGH)
-	_time.sleep(0.1)
-	GPIO.output(35, GPIO.LOW)
-	_time.sleep(time)
+# def sleep_LTE(time):
+# 	# set SMS module to sleep
+# 	GPIO.output(35, GPIO.HIGH)
+# 	_time.sleep(0.1)
+# 	GPIO.output(35, GPIO.LOW)
+# 	_time.sleep(time)
 	
 
-def wake_LTE():
-	# set all devices to be active
-	strobe_light(0.1,2)
+# def wake_LTE():
+# 	# set all devices to be active
+# 	strobe_light(0.1,2)
 
-	GPIO.output(33,GPIO.LOW)
-	_time.sleep(0.1)
-	GPIO.output(33,GPIO.HIGH)
+# 	GPIO.output(33,GPIO.LOW)
+# 	_time.sleep(0.1)
+# 	GPIO.output(33,GPIO.HIGH)
 
-	if not ser.is_open:
-		print("open serial")
-		ser.open()
+# 	if not ser.is_open:
+# 		print("open serial")
+# 		ser.open()
 	
-	sendCommand(OPERATE_SMS_MODE)
-	# sendCommand(CLEAR_READ)
-	ser.read(ser.in_waiting) # should not need this?
-	logging.info('SMS module is active has been completed')
+# 	sendCommand(OPERATE_SMS_MODE)
+# 	# sendCommand(CLEAR_READ)
+# 	ser.read(ser.in_waiting) # should not need this?
+# 	logging.info('SMS module is active has been completed')
 
 
 def warmup():
@@ -129,8 +129,8 @@ def warmup():
 		ser.open()
 	# if the LTE module doesnt activate, reset it?
 
-	# sendCommand(OPERATE_SMS_MODE)
-	# sendCommand(CLEAR_READ)
+	sendCommand(OPERATE_SMS_MODE)
+	sendCommand(CLEAR_READ)
 	# ser.read(ser.in_waiting) # should not need this?
 	# logging.info('Turn on airplane mode')
 	# # sendCommand(TURN_ON_AIRPLANE_MODE)
@@ -322,24 +322,26 @@ def main():
 	
 	warned = False
 	temp_voltage = ina260.get_bus_voltage()
-	config_mode=check_button()
+	# config_mode=check_button()
 
-	if config_mode == True:
-		strobe_light(1,10)
-		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
-		# do somthing to promt user for change of phone number/module number
-		# restart after exiting config mode if any settings have been changed
-		config_mode = False
-	else:
-		strobe_light(0.5,2)
+	# if config_mode == True:
+	# 	strobe_light(1,10)
+	# 	send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
+	# 	# do somthing to promt user for change of phone number/module number
+	# 	# restart after exiting config mode if any settings have been changed
+	# 	config_mode = False
+	# else:
+	# 	strobe_light(0.5,2)
 
 	while True:
 		
 		# check water sensor
-		if check_float() == True:
-			# wake_LTE()
-			send_txt('Float switch has been activated on module %s' % ID,NUM)
-			# sleep_LTE()
+		# if check_float() == True:
+		# 	# wake_LTE()
+		# 	send_txt('Float switch has been activated on module %s' % ID,NUM)
+		# 	# sleep_LTE()
+		# else:
+		strobe_light(0.5,2)
 		
 
 		current_voltage = ina260.get_bus_voltage()
@@ -352,7 +354,7 @@ def main():
 			elif current_voltage <= 11.60 :
 				if warned == False:
 					# wake_LTE()
-					send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+					# send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
 					# sleep_LTE()
 					warned = True
 				logging.warning("Voltage VERY LOW: %s" % current_voltage)
