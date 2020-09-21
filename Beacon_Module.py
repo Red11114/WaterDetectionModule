@@ -38,9 +38,9 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-# GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
-# GPIO.setup(35, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
-# GPIO.setup(37, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
+GPIO.setup(13, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
+GPIO.setup(19, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+GPIO.setup(26, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 GPIO.setup(22, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 
 # Function to load in settings from a json file
