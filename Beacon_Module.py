@@ -353,7 +353,9 @@ def main():
 				logging.warning("Voltage LOW: %s" % current_voltage)
 			elif current_voltage <= 11.60 :
 				if warned == False:
+					wake_LTE()
 					send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+					sleep_LTE()
 					warned = True
 				logging.warning("Voltage VERY LOW: %s" % current_voltage)
 			else:
