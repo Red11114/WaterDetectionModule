@@ -39,8 +39,8 @@ GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 GPIO.setup(33, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
-GPIO.setup(35, GPIO.OUT, intital=GPIO.LOW) # W_DISABLE pin on 4g module
-GPIO.setup(37, GPIO.OUT, intital=GPIO.LOW) # PERST pin on 4g module
+GPIO.setup(35, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+GPIO.setup(37, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 GPIO.setup(22, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 
 # Function to load in settings from a json file
@@ -117,7 +117,7 @@ def warmup():
 		logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 	except:
 		print("Log file could not be made")
-		logging.error("Log file could not be made")
+		# logging.error("Log file could not be made")
 
 	# Load settings from settings_.json
 	load_settings()
@@ -131,7 +131,7 @@ def warmup():
 
 	# sendCommand(OPERATE_SMS_MODE)
 	# sendCommand(CLEAR_READ)
-	ser.read(ser.in_waiting) # should not need this?
+	# ser.read(ser.in_waiting) # should not need this?
 	# logging.info('Turn on airplane mode')
 	# # sendCommand(TURN_ON_AIRPLANE_MODE)
 	response = ser.read(ser.in_waiting)
@@ -268,7 +268,7 @@ def strobe_light(secconds, count):
 def check_float():
 	# initialise active check time
 	check_time = _time.perf_counter()
-	false_detect_time = 20
+	false_detect_time = 5
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0:
 		if _time.perf_counter() - check_time > false_detect_time:
@@ -316,7 +316,6 @@ def check_button():
 def main():
 	global ID
 	global NUM
-	global confirming
 	global ina260
 
 	warmup()
@@ -330,6 +329,7 @@ def main():
 		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
 		# do somthing to promt user for change of phone number/module number
 		# restart after exiting config mode if any settings have been changed
+		config_mode = False
 	else:
 		strobe_light(0.5,2)
 
@@ -337,12 +337,10 @@ def main():
 		
 		# check water sensor
 		if check_float() == True:
-			strobe_light(2,1)
 			# wake_LTE()
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
 			# sleep_LTE()
-		else:
-			strobe((0.2,1))
+		
 
 		current_voltage = ina260.get_bus_voltage()
 		# Check Voltage and send text if low
@@ -363,7 +361,7 @@ def main():
 			# Assign new temp voltage
 			temp_voltage = ina260.get_bus_voltage()
 		
-		_time.sleep(10)
+		_time.sleep(30)
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
