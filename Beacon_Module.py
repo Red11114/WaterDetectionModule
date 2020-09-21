@@ -38,9 +38,9 @@ GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-GPIO.setup(33, GPIO.IN, pull_up_down=GPIO.PUD_UP # DTR pin on 4g module
-GPIO.setup(35, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # W_DISABLE pin on 4g module
-GPIO.setup(37, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # PERST pin on 4g module
+GPIO.setup(33, GPIO.OUT, pull_up_down=GPIO.PUD_UP) # DTR pin on 4g module
+GPIO.setup(35, GPIO.OUT, pull_up_down=GPIO.PUD_DOWN) # W_DISABLE pin on 4g module
+GPIO.setup(37, GPIO.OUT, pull_up_down=GPIO.PUD_DOWN) # PERST pin on 4g module
 GPIO.setup(22, GPIO.OUT, initial = GPIO.LOW) # Strobe pin
 
 # Function to load in settings from a json file
@@ -326,22 +326,30 @@ def main():
 	config_mode=check_button()
 
 	if config_mode == True:
+		strobe_light(1,10)
 		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
 		# do somthing to promt user for change of phone number/module number
 		# restart after exiting config mode if any settings have been changed
+	else:
+		strobe_light(0.5,2)
 
 	while True:
 		
 		# check water sensor
 		if check_float() == True:
+			strobe_light(2,1)
 			wake_LTE()
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
 			sleep_LTE()
+		else:
+			strobe((0.2,1))
 
 		current_voltage = ina260.get_bus_voltage()
 		# Check Voltage and send text if low
 		if current_voltage < temp_voltage - 0.1:
-			if current_voltage <= 11.80:
+			if current_voltage > 12.4:
+				warned == False:
+			elif current_voltage <= 11.80:
 				logging.warning("Voltage LOW: %s" % current_voltage)
 			elif current_voltage <= 11.60 :
 				if warned == False:
@@ -353,8 +361,7 @@ def main():
 			# Assign new temp voltage
 			temp_voltage = ina260.get_bus_voltage()
 		
-		
-		_time.sleep(2*60)
+		_time.sleep(10)
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
