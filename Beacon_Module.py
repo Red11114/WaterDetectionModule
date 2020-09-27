@@ -24,17 +24,18 @@ NUM = ""
 OPERATE_SMS_MODE = b'AT+CMGF=1\r'
 RECEIVE_SMS = b'AT+CMGL="REC UNREAD"\r'
 CLEAR_READ = b'AT+CMGD=1,1\r'
-TURN_ON_AIRPLANE_MODE = b'AT+QCFG=”airplanecontrol”,1\r'
+TURN_ON_AIRPLANE_MODE = b'AT+QCFG="airplanecontrol",1\r'
 MIN_FUNCTONALITY = b'AT+CFUN=0\r'
+NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
+DISABLE_SLEEP = b'AT+QSCLK=0\r'
 ENABLE_SLEEP = b'AT+QSCLK=1\r'
 
-
 # Serial settings
-SERIAL_PORT = '/dev/ttyUSB2'
+SERIAL_PORT = '/dev/ttyAMA0'
 SERIAL_RATE = 115200
 
 # Setup serial communication to the LTE modem
-ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=5)
+ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=2,write_timeout=2)
 
 # Pin definitions
 DTR = 13
@@ -70,6 +71,7 @@ def write_settings():
 	global NUM
 	global ID
 	logging.info("Saving settings: ID - %s, NUM - %s" %(ID,NUM))
+
 	# Initialize data structre to be saved to file
 	data = {}
 	data['settings'] = []
@@ -81,27 +83,36 @@ def write_settings():
 	with open('settings_.json', 'w') as outfile:
 		json.dump(data, outfile,indent=4)
 
-def sleep_LTE(time):
+def sleep_LTE():
 	# set SMS module to sleep
-	if ser.is_open:
+	print("try sleep?")
+	if not ser.is_open:
+		ser.open()
+
+		print("going into sleep mode")
+		sendCommand(MIN_FUNCTONALITY)
+		readResponse()
 		sendCommand(ENABLE_SLEEP)
-		readResponse(20)
-		
-		_time.sleep(0.1)
+		readResponse()
+
+		ser.close()
 		GPIO.output(DTR, GPIO.HIGH)
 		_time.sleep(0.1)
+		
 
 def wake_LTE():
 	# set all devices to be active
 	strobe_light(0.1,2)
 	GPIO.output(DTR,GPIO.LOW)
 	
-	active = b''
-	while not active.find(b'OK') != -1:
+	active = ""
+	while not active.find('OK') != -1:
 		sendCommand(b'AT\r')
 		active = readResponse()
 		
-	logging.info(response)
+	sendCommand(NORMAL_FUNCTONALITY)
+	readResponse()
+	
 	logging.info('SMS module is active has been completed')
 
 
@@ -113,10 +124,14 @@ def warmup():
 	ina260 = INA260(dev_address=0x40)
 	ina260.reset_chip()
 	_time.sleep(0.1)
-	
+
+	wake_LTE()
+
+	sendCommand(b'ATE0\r') # removes echo
+	readResponse()
 	sendCommand(b'AT\r')
-	readResponse(10)
-	# ser.read(ser.in_waiting) # should not need this?
+	readResponse()
+
 	print('Turn on airplane mode')
 	sendCommand(TURN_ON_AIRPLANE_MODE)
 	readResponse()
@@ -141,24 +156,30 @@ def warmup():
 	
 # Function for sending AT commands
 def sendCommand(command): 
-	if not ser.open():
+	if not ser.is_open:
 		ser.open()
 		print("opening serial")
-
-	ser.write(command)
-	print("MODEM COMMAND: %s" % command.decode())
-
-def readResponse(chunk_size=100):
-	"""Read all characters on the serial port and return them."""
-    if not port.timeout:
-        raise TypeError('Port needs to have a timeout set!')
 	
+	
+	print("MODEM COMMAND: %s" % command.decode())
+	# ser.reset_output_buffer()
+	writen = ser.write(command)
+	_time.sleep(0.5)
+	ser.readline()
+	# print("writen = %d" % writen)
+
+def readResponse():
+	# Read all characters on the serial port and return them.
+	if not ser.timeout:
+		raise TypeError('Port needs to have a timeout set!')
+	
+	# ser.reset_input_buffer()
 	read_buffer=b''
-	while True:
-		byte_chunk=ser.read(size=chunk_size)
-		read_buffer += byte_chunk
-		if not len(byte_chunk) == chunk_size:
-			break
+	# print("num in waiting = %d" % ser.in_waiting)
+	while ser.in_waiting != 0:
+		byte_chunk=ser.readline()
+		read_buffer += byte_chunk[:-2]
+		# print(read_buffer)
 	response = read_buffer.decode()
 
 	ser.close()
@@ -359,7 +380,7 @@ def main():
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
 			
 		else:
-		strobe_light(0.5,1)
+			strobe_light(0.5,1)
 
 		# current_voltage = ina260.get_bus_voltage()
 		# # Check Voltage and send text if low
@@ -380,9 +401,9 @@ def main():
 		# 	# Assign new temp voltage
 		# 	temp_voltage = ina260.get_bus_voltage()
 		
-		# sleep_LTE()
+		sleep_LTE()
 		_time.sleep(30)
-		# wake_LTE()
+		wake_LTE()
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
