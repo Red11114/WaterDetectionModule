@@ -17,45 +17,34 @@ import serial
 # Import drivers
 from INA260_MINIMAL import INA260
 
-ID = ""
-NUM = ""
-
 # Define At command strings
 OPERATE_SMS_MODE = b'AT+CMGF=1\r'
 RECEIVE_SMS = b'AT+CMGL="REC UNREAD"\r'
 CLEAR_READ = b'AT+CMGD=1,1\r'
-TURN_ON_AIRPLANE_MODE = b'AT+QCFG="airplanecontrol",1\r'
+ALLOW_AIRPLANE_MODE = b'AT+QCFG="airplanecontrol",1\r'
 MIN_FUNCTONALITY = b'AT+CFUN=0\r'
 NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
 DISABLE_SLEEP = b'AT+QSCLK=0\r'
 ENABLE_SLEEP = b'AT+QSCLK=1\r'
-
-# Serial settings
-SERIAL_PORT = '/dev/ttyAMA0'
-SERIAL_RATE = 115200
-
-# Setup serial communication to the LTE modem
-ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=2,write_timeout=2)
+ECHO_OFF = b'ATE0\r'
+ENABLE_TIME_ZONE_UPDATE = b'AT+CTZU=3\r'
+TIME_QUERY = b'AT+CCLK?\r'
+SIGNAL_CHECK = b'AT+CSQ\r'
 
 # Pin definitions
+## hardware
+FLOAT = 17
+BUTTON = 27
+STROBE = 22
+## 3G LTE Modem
 DTR = 13
 W_DISABLE = 19
 PERST = 26
-# Setup GPIO pins and define float/button pins
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
-GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-GPIO.setup(DTR, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
-GPIO.setup(W_DISABLE, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
-GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
-GPIO.setup(22, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
+
 
 # Function to load in settings from a json file
 def load_settings():
-	global NUM
-	global ID
-	logging.info("Loading settings")
+	# logging.info("Loading settings")
 	# Open the setting file and read in the data
 	with open('settings_.json') as json_file:
 		settings = json.load(json_file)
@@ -63,14 +52,13 @@ def load_settings():
 	for s in settings['settings']:
 		ID = s['ID']
 		NUM = s['NUM']
-		logging.info('ID loaded: ' + s['ID'])
-		logging.info('NUM loaded: ' + s['NUM'])
+		# logging.info('ID loaded: ' + s['ID'])
+		# logging.info('NUM loaded: ' + s['NUM'])
+	return ID, NUM
 
 # Function to write settings to a json file
-def write_settings():
-	global NUM
-	global ID
-	logging.info("Saving settings: ID - %s, NUM - %s" %(ID,NUM))
+def write_settings(ID,NUM):
+	# logging.info("Saving settings: ID - %s, NUM - %s" %(ID,NUM))
 
 	# Initialize data structre to be saved to file
 	data = {}
@@ -83,127 +71,142 @@ def write_settings():
 	with open('settings_.json', 'w') as outfile:
 		json.dump(data, outfile,indent=4)
 
-def sleep_LTE():
+# no logging allowed in this function
+def sync_LTE(ser):
+	print("sync")
+	GPIO.output(DTR,GPIO.LOW)
+
+	if not ser.is_open:
+		ser.open()
+		print("opening serial")
+		
+	active = b''
+	while active.find(b'OK') != -1:
+		ser.write(b'AT\r')
+		active += ser.readline()
+		
+	ser.write(NORMAL_FUNCTONALITY)
+	_time.sleep(0.5)
+	print(ser.read(ser.in_waiting))
+	ser.write(SIGNAL_CHECK)
+	_time.sleep(0.5)
+	print(ser.read(ser.in_waiting))
+	ser.write(ENABLE_TIME_ZONE_UPDATE)
+	_time.sleep(0.5)
+	print(ser.read(ser.in_waiting))
+	# print(ser.read(ser.in_waiting))
+	ser.write(TIME_QUERY)
+	_time.sleep(0.5)
+
+	# ser.reset_input_buffer()
+	read_buffer=[]
+	# print("num in waiting = %d" % ser.in_waiting)
+	while ser.in_waiting != 0:
+		chunk=ser.readline()[:-2]	# remove the '\r\n'
+		read_buffer.append(chunk.decode())
+		# print(chunk)
+	
+	ser.close()
+
+	print(read_buffer)
+	modem_time = read_buffer[1][:-4]
+	print(modem_time)
+	try:
+		local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
+	except:
+		print("fail")
+	print(local_time)
+	_time.sleep(0.3)
+
+	return local_time
+
+def sleep_LTE(ser):
 	# set SMS module to sleep
-	print("try sleep?")
 	if not ser.is_open:
 		ser.open()
 
-		print("going into sleep mode")
-		sendCommand(MIN_FUNCTONALITY)
-		readResponse()
-		sendCommand(ENABLE_SLEEP)
-		readResponse()
+	print("Going into sleep mode")
+	logging.info("Going into sleep mode")
 
-		ser.close()
-		GPIO.output(DTR, GPIO.HIGH)
-		_time.sleep(0.1)
+	sendCommand(ser,MIN_FUNCTONALITY)
+	readResponse(ser)
+	sendCommand(ser,ENABLE_SLEEP)
+	readResponse(ser)
+
+	ser.close()
+	GPIO.output(DTR, GPIO.HIGH)
+	_time.sleep(0.1)
 		
 
-def wake_LTE():
+def wake_LTE(ser):
 	# set all devices to be active
 	strobe_light(0.1,2)
 	GPIO.output(DTR,GPIO.LOW)
 	
-	active = ""
-	while not active.find('OK') != -1:
-		sendCommand(b'AT\r')
-		active = readResponse()
+	print("Returing from sleep mode")
+	logging.info("Returing from sleep mode")
+
+	active = []
+	while 'OK' not in active:
+		sendCommand(ser,b'AT\r')
+		active = readResponse(ser)
 		
-	sendCommand(NORMAL_FUNCTONALITY)
-	readResponse()
-	
-	logging.info('SMS module is active has been completed')
+	sendCommand(ser,NORMAL_FUNCTONALITY)
+	readResponse(ser)
+	_time.sleep(0.3)
+	# logging.info('SMS module is active has been completed')
 
 
-def warmup():
-	logging.info("Start warmup")
-
-	logging.info("Initialise and reset INA260 chip")
-	global ina260
-	ina260 = INA260(dev_address=0x40)
-	ina260.reset_chip()
-	_time.sleep(0.1)
-
-	wake_LTE()
-
-	sendCommand(b'ATE0\r') # removes echo
-	readResponse()
-	sendCommand(b'AT\r')
-	readResponse()
-
-	print('Turn on airplane mode')
-	sendCommand(TURN_ON_AIRPLANE_MODE)
-	readResponse()
-
-	# Setup logging
-	# Add polling for real time?
-	datetime_object = datetime.now()
-	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
-	try:
-		logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_Operation.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-	except:
-		print("Log file could not be made")
-		# logging.error("Log file could not be made")
-
-	# Load settings from settings_.json
-	load_settings()
-	
-	strobe_light(0.1,2)
-
-	
-	logging.info('Warmup has been completed')
 	
 # Function for sending AT commands
-def sendCommand(command): 
+def sendCommand(ser,command): 
 	if not ser.is_open:
 		ser.open()
-		print("opening serial")
 	
-	
+	logging.info("MODEM COMMAND: %s" % command.decode())
 	print("MODEM COMMAND: %s" % command.decode())
-	# ser.reset_output_buffer()
-	writen = ser.write(command)
+	
+	ser.write(command)
 	_time.sleep(0.5)
 	ser.readline()
-	# print("writen = %d" % writen)
 
-def readResponse():
+def readResponse(ser):
 	# Read all characters on the serial port and return them.
 	if not ser.timeout:
 		raise TypeError('Port needs to have a timeout set!')
 	
 	# ser.reset_input_buffer()
-	read_buffer=b''
+	read_buffer=[]
 	# print("num in waiting = %d" % ser.in_waiting)
 	while ser.in_waiting != 0:
-		byte_chunk=ser.readline()
-		read_buffer += byte_chunk[:-2]
-		# print(read_buffer)
-	response = read_buffer.decode()
-
+		chunk=ser.readline()[:-2]	# remove the '\r\n'
+		read_buffer.append(chunk.decode())
+	
 	ser.close()
-	logging.info(response)
-	print("MODEM RESPONSE: %s" % response)
+	response = read_buffer
+
+	for lines in response:
+		logging.info('MODEM RESPONSE: %s' % lines)
+		print("MODEM RESPONSE: %s" % lines)
+	
 	return response
 
 # Function for sending a Text
 def send_txt(message,number):
 	SEND_SMS = b'AT+CMGS="%s"\r'% number
-	logging.info("Sending SMS to %s"% number)
+	# logging.info("Sending SMS to %s"% number)
 	print("Sending SMS to %s"% number)
 	
-	
-	logging.info("SMS SENT: %s" % message)
+	# logging.info("SMS SENT: %s" % message)
 	print("SMS SENT: %s" % message)
-	# sendCommand(OPERATE_SMS_MODE)
-	# readResponse()
-	# # sendCommand(SEND_SMS)
-	# readResponse()
-	# # sendCommand(message)
-	# readResponse()
-	# sendCommand('\x1A')	#sending CTRL-Z
-	logging.info("close serial")
+	# sendCommand(ser,OPERATE_SMS_MODE)
+	# readResponse(ser)
+	# # sendCommand(ser,SEND_SMS)
+	# readResponse(ser)
+	# # sendCommand(ser,message)
+	# readResponse(ser)
+	# sendCommand(ser,'\x1A')	#sending CTRL-Z
+	# logging.info("close serial")
 
 # Function for receiving a Text. 
 # will respond accordingly?
@@ -211,10 +214,10 @@ def receive_txt():
 	# logging.info("Attempt to receive text")
 	# Open serial if required
 	if not ser.is_open:
-		logging.info("Open serial")
+		# logging.info("Open serial")
 		ser.open()
 	# Check if there is any unread texts
-	sendCommand(RECEIVE_SMS)
+	sendCommand(ser,RECEIVE_SMS)
 	# sendCommand('\x1A')
 	_time.sleep(0.2)
 	reply = ser.read(ser.in_waiting).decode()
@@ -224,7 +227,7 @@ def receive_txt():
 	# logging.info("MODEM Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
-		logging.info('Found CMGL: in serial response')
+		# logging.info('Found CMGL: in serial response')
 		
 		print("Reply_lines %s" % reply_lines)
 		# Find index of response that contains the SMS
@@ -234,7 +237,7 @@ def receive_txt():
 				print("response at index: %s"% i)
 		# Extract the SMS info
 		info_list = reply_lines[response_index]
-		logging.info('SMS info list from serial: %s' % info_list)
+		# logging.info('SMS info list from serial: %s' % info_list)
 		info_list = info_list.split(",")
 		print("Info_list: %s" % info_list)
 		# Find number of txts in mem, the sender's number and the text msg
@@ -245,7 +248,7 @@ def receive_txt():
 		number = number[1:len(number)-1]
 		print("NUMBER: %s" % number)
 		text_msg = reply_lines[response_index+1]
-		logging.info("TEXT: %s" % text_msg)
+		# logging.info("TEXT: %s" % text_msg)
 		print("TEXT: %s" % text_msg)
 		# Clear the modems SMS memory
 		sendCommand(CLEAR_READ)
@@ -259,22 +262,22 @@ def receive_confirmation(timer):
 	global confirming
 	# Begin timer for how long to wait for confirmation
 	confirming = True
-	logging.info("Starting timer for %s seconds" % timer)
+	# logging.info("Starting timer for %s seconds" % timer)
 	time = _time.perf_counter()
 	while _time.perf_counter() < time + timer:
 		# Create count down
 		clock = timer - (_time.perf_counter() - time)
-		logging.info("Countdown: %d" % clock)
+		# logging.info("Countdown: %d" % clock)
 		print("Countdown: %d" % clock)
 		txt_number, txt_msg = receive_txt()
 		if txt_msg != None:
 			# Check if the Modules ID number is included
 			if (txt_msg.find(ID) != -1):
-				logging.info("Received confirmation reply: %s" % txt_msg)
+				# logging.info("Received confirmation reply: %s" % txt_msg)
 				# Check what command was sent
 				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
 					confirming = False
-					logging.info('Confirmed yes')
+					# logging.info('Confirmed yes')
 					strobe_light(0.2,5)
 					return True
 				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
@@ -282,20 +285,20 @@ def receive_confirmation(timer):
 					logging.info('Confirmed no')
 					return False
 				else:
-					logging.warning("Confirmation not correctly spelt")
+					# logging.warning("Confirmation not correctly spelt")
 					send_txt('Confirmation spelt incorrectly',txt_number)
 			else:
-				logging.warning('Incorrect format, reply: %s yes/no' % ID)
+				# logging.warning('Incorrect format, reply: %s yes/no' % ID)
 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
 				
 		_time.sleep(1)
-	logging.info("TIMER OUT")
+	# logging.info("TIMER OUT")
 	confirming = False
 	return None
 
 # Function to strobe the light
 def strobe_light(secconds, count):
-	logging.info("Strobe light :)")
+	# logging.info("Strobe light :)")
 	i = 0
 	while i < count:
 		GPIO.output(22, GPIO.HIGH)
@@ -312,7 +315,7 @@ def check_float():
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0:
 		if _time.perf_counter() - check_time > false_detect_time:
-			logging.info("The float was activated for %s seconds" % false_detect_time)
+			# logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
 			
 			return True
@@ -326,7 +329,7 @@ def check_button():
 	# Check if the button is high for the false_detect_time
 	while GPIO.input(27) == 0:
 		if _time.perf_counter() - check_time > false_detect_time:
-			logging.info("The button was held for at least %s seconds when the device was booted" % false_detect_time)
+			# logging.info("The button was held for at least %s seconds when the device was booted" % false_detect_time)
 			strobe_light(0.2,4)
 			return True
 		_time.sleep(1)
@@ -352,16 +355,71 @@ def check_button():
 	# 	elif confirmation == None:
 	# 		send_txt('Timer ran out',NUM)
 
+def check_voltage(ina260):
+	voltage = ina260.get_bus_voltage()
+	current = ina260.get_current()
+
+	print(voltage,current)
+	logging.debug('%f,%f' % (voltage,current))
+
+	return voltage, current
+
+def warmup():
+	# Setup GPIO pins and define float/button pins
+	GPIO.setmode(GPIO.BCM)
+	GPIO.setwarnings(False)
+	GPIO.setup(FLOAT, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
+	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
+	GPIO.setup(DTR, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
+	GPIO.setup(W_DISABLE, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
+	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
+
+	# Serial settings
+	SERIAL_PORT = '/dev/ttyAMA0'
+	SERIAL_RATE = 115200
+
+	# Setup serial communication to the LTE modem
+	ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=2,write_timeout=2)
+
+	local_time=sync_LTE(ser)
+	
+	# Setup logging
+	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
+	try:
+		logging.basicConfig(filename='logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+	except:
+		print("Log file could not be made")
+
+	try:
+		logging.info('Log file has been created')
+	except:
+		print("failied to log")
+
+	# Configure modem settings
+	logging.info("Setup modem settings")
+	sendCommand(ser,ECHO_OFF) # removes echo
+	readResponse(ser)
+	sendCommand(ser,ALLOW_AIRPLANE_MODE)
+	readResponse(ser)
+
+	logging.info("Initialise and reset INA260 chip")
+	ina260 = INA260(dev_address=0x40)
+	ina260.reset_chip()
+	_time.sleep(0.1)
+
+	logging.info('Warmup has been completed')
+	return ina260, ser
+
 # MAIN gets called on script startup
 def main():
-	global ID
-	global NUM
-	global ina260
- 
-	warmup()
-	
-	warned = False
-	temp_voltage = ina260.get_bus_voltage()
+	ina260,ser = warmup()
+
+	# Load settings from settings_.json
+	ID, NUM = load_settings()
+
+	# warned = False
+	temp_voltage, temp_current = check_voltage(ina260)
 	config_mode=check_button()
 
 	if config_mode == True:
@@ -382,6 +440,8 @@ def main():
 		else:
 			strobe_light(0.5,1)
 
+		temp_voltage, temp_current = check_voltage(ina260)
+
 		# current_voltage = ina260.get_bus_voltage()
 		# # Check Voltage and send text if low
 		# if current_voltage < temp_voltage - 0.1:
@@ -401,9 +461,9 @@ def main():
 		# 	# Assign new temp voltage
 		# 	temp_voltage = ina260.get_bus_voltage()
 		
-		sleep_LTE()
+		sleep_LTE(ser)
 		_time.sleep(30)
-		wake_LTE()
+		wake_LTE(ser)
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
