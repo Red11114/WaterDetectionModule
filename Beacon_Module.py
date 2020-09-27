@@ -13,9 +13,16 @@ import threading
 # Import installed packages
 import RPi.GPIO as GPIO
 import serial
+import argparse
 
 # Import drivers
 from INA260_MINIMAL import INA260
+
+parser = argparse.ArgumentParser(description='Emulation mode')
+parser.add_argument('-e', action='store-true',dest='emulation',
+help='Use this to debug code in emulation mode')
+
+parsed = parser.parse_args()
 
 ID = ""
 NUM = ""
