@@ -13,16 +13,9 @@ import threading
 # Import installed packages
 import RPi.GPIO as GPIO
 import serial
-import argparse
 
 # Import drivers
 from INA260_MINIMAL import INA260
-
-parser = argparse.ArgumentParser(description='Emulation mode')
-parser.add_argument('-e', action='store-true',dest='emulation',
-help='Use this to debug code in emulation mode')
-
-parsed = parser.parse_args()
 
 ID = ""
 NUM = ""
@@ -32,6 +25,8 @@ OPERATE_SMS_MODE = 'AT+CMGF=1\r'
 RECEIVE_SMS = 'AT+CMGL="REC UNREAD"\r'
 CLEAR_READ = 'AT+CMGD=1,1'
 TURN_ON_AIRPLANE_MODE = 'AT+QCFG=”airplanecontrol”,1'
+ENABLE_SLEEP = 'AT+QSCLK=1'
+
 
 # Serial settings
 SERIAL_PORT = '/dev/ttyUSB2'
@@ -40,14 +35,18 @@ SERIAL_RATE = 115200
 # Setup serial communication to the LTE modem
 ser = serial.Serial(SERIAL_PORT,SERIAL_RATE)
 
+# Pin definitions
+DTR = 13
+W_DISABLE = 19
+PERST = 26
 # Setup GPIO pins and define float/button pins
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 GPIO.setup(27, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-GPIO.setup(13, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
-GPIO.setup(19, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
-GPIO.setup(26, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
+GPIO.setup(DTR, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
+GPIO.setup(W_DISABLE, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 GPIO.setup(22, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 
 # Function to load in settings from a json file
@@ -81,30 +80,27 @@ def write_settings():
 	with open('settings_.json', 'w') as outfile:
 		json.dump(data, outfile,indent=4)
 
-# def sleep_LTE(time):
-# 	# set SMS module to sleep
-# 	GPIO.output(35, GPIO.HIGH)
-# 	_time.sleep(0.1)
-# 	GPIO.output(35, GPIO.LOW)
-# 	_time.sleep(time)
+def sleep_LTE(time):
+	# set SMS module to sleep
+	if ser.is_open:
+		sendCommand(ENABLE_SLEEP)
+		response = ser.read(ser.in_waiting)
+		logging.info(response)
+		print(response)
+		_time.sleep(0.1)
+		GPIO.output(DTR, GPIO.HIGH)
+		_time.sleep(0.1)
+		
 	
 
-# def wake_LTE():
-# 	# set all devices to be active
-# 	strobe_light(0.1,2)
-
-# 	GPIO.output(33,GPIO.LOW)
-# 	_time.sleep(0.1)
-# 	GPIO.output(33,GPIO.HIGH)
-
-# 	if not ser.is_open:
-# 		print("open serial")
-# 		ser.open()
+def wake_LTE():
+	# set all devices to be active
+	strobe_light(0.1,2)
+	GPIO.output(DTR,GPIO.LOW)
 	
-# 	sendCommand(OPERATE_SMS_MODE)
-# 	# sendCommand(CLEAR_READ)
-# 	ser.read(ser.in_waiting) # should not need this?
-# 	logging.info('SMS module is active has been completed')
+	response = ser.read(ser.in_waiting) # should not need this?
+	logging.info(response)
+	logging.info('SMS module is active has been completed')
 
 
 def warmup():
@@ -294,7 +290,7 @@ def check_button():
 	while GPIO.input(27) == 0:
 		if _time.perf_counter() - check_time > false_detect_time:
 			logging.info("The button was held for at least %s seconds when the device was booted" % false_detect_time)
-			strobe_light(0.5,4)
+			strobe_light(0.2,4)
 			return True
 		_time.sleep(1)
 	return False
@@ -329,25 +325,27 @@ def main():
 	
 	warned = False
 	temp_voltage = ina260.get_bus_voltage()
-	# config_mode=check_button()
+	config_mode=check_button()
 
-	# if config_mode == True:
-	# 	strobe_light(1,10)
-	# 	send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
-	# 	# do somthing to promt user for change of phone number/module number
-	# 	# restart after exiting config mode if any settings have been changed
-	# 	config_mode = False
-	# else:
-	# 	strobe_light(0.5,2)
+	if config_mode == True:
+		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
+		strobe_light(1,10)
+
+		# do somthing to promt user for change of phone number/module number
+		# restart after exiting config mode if any settings have been changed
+		config_mode = False
+	else:
+		strobe_light(0.5,2)
 
 	while True:
 		
+		
 		# check water sensor
-		# if check_float() == True:
-		# 	# wake_LTE()
-		# 	send_txt('Float switch has been activated on module %s' % ID,NUM)
-		# 	# sleep_LTE()
-		# else:
+		if check_float() == True:
+			
+			send_txt('Float switch has been activated on module %s' % ID,NUM)
+			
+		else:
 		strobe_light(0.5,2)
 		
 
@@ -360,9 +358,9 @@ def main():
 				logging.warning("Voltage LOW: %s" % current_voltage)
 			elif current_voltage <= 11.60 :
 				if warned == False:
-					# wake_LTE()
-					# send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
-					# sleep_LTE()
+					wake_LTE()
+					send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+					sleep_LTE()
 					warned = True
 				logging.warning("Voltage VERY LOW: %s" % current_voltage)
 			else:
@@ -370,7 +368,9 @@ def main():
 			# Assign new temp voltage
 			temp_voltage = ina260.get_bus_voltage()
 		
+		sleep_LTE()
 		_time.sleep(30)
+		wake_LTE()
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
