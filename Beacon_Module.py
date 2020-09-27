@@ -21,11 +21,12 @@ ID = ""
 NUM = ""
 
 # Define At command strings
-OPERATE_SMS_MODE = 'AT+CMGF=1\r'
-RECEIVE_SMS = 'AT+CMGL="REC UNREAD"\r'
-CLEAR_READ = 'AT+CMGD=1,1'
-TURN_ON_AIRPLANE_MODE = 'AT+QCFG=”airplanecontrol”,1'
-ENABLE_SLEEP = 'AT+QSCLK=1'
+OPERATE_SMS_MODE = b'AT+CMGF=1\r'
+RECEIVE_SMS = b'AT+CMGL="REC UNREAD"\r'
+CLEAR_READ = b'AT+CMGD=1,1\r'
+TURN_ON_AIRPLANE_MODE = b'AT+QCFG=”airplanecontrol”,1\r'
+MIN_FUNCTONALITY = b'AT+CFUN=0\r'
+ENABLE_SLEEP = b'AT+QSCLK=1\r'
 
 
 # Serial settings
@@ -33,7 +34,7 @@ SERIAL_PORT = '/dev/ttyUSB2'
 SERIAL_RATE = 115200
 
 # Setup serial communication to the LTE modem
-ser = serial.Serial(SERIAL_PORT,SERIAL_RATE)
+ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=5)
 
 # Pin definitions
 DTR = 13
@@ -84,21 +85,22 @@ def sleep_LTE(time):
 	# set SMS module to sleep
 	if ser.is_open:
 		sendCommand(ENABLE_SLEEP)
-		response = ser.read(ser.in_waiting)
-		logging.info(response)
-		print(response)
+		readResponse(20)
+		
 		_time.sleep(0.1)
 		GPIO.output(DTR, GPIO.HIGH)
 		_time.sleep(0.1)
-		
-	
 
 def wake_LTE():
 	# set all devices to be active
 	strobe_light(0.1,2)
 	GPIO.output(DTR,GPIO.LOW)
 	
-	response = ser.read(ser.in_waiting) # should not need this?
+	active = b''
+	while not active.find(b'OK') != -1:
+		sendCommand(b'AT\r')
+		active = readResponse()
+		
 	logging.info(response)
 	logging.info('SMS module is active has been completed')
 
@@ -110,8 +112,15 @@ def warmup():
 	global ina260
 	ina260 = INA260(dev_address=0x40)
 	ina260.reset_chip()
-	_time.sleep(1)
+	_time.sleep(0.1)
 	
+	sendCommand(b'AT\r')
+	readResponse(10)
+	# ser.read(ser.in_waiting) # should not need this?
+	print('Turn on airplane mode')
+	sendCommand(TURN_ON_AIRPLANE_MODE)
+	readResponse()
+
 	# Setup logging
 	# Add polling for real time?
 	datetime_object = datetime.now()
@@ -127,46 +136,53 @@ def warmup():
 	
 	strobe_light(0.1,2)
 
-	if not ser.is_open:
-		print("open serial")
-		ser.open()
-	# if the LTE module doesnt activate, reset it?
-
-	sendCommand(OPERATE_SMS_MODE)
-	sendCommand(CLEAR_READ)
-	# ser.read(ser.in_waiting) # should not need this?
-	# logging.info('Turn on airplane mode')
-	# # sendCommand(TURN_ON_AIRPLANE_MODE)
-	response = ser.read(ser.in_waiting)
-	logging.info(response)
-	print(response)
+	
 	logging.info('Warmup has been completed')
 	
 # Function for sending AT commands
 def sendCommand(command): 
-	ser.write(command.encode())
-	# logging.info("Send command to LTE module %s" % command)
-	_time.sleep(0.2)
+	if not ser.open():
+		ser.open()
+		print("opening serial")
+
+	ser.write(command)
+	print("MODEM COMMAND: %s" % command.decode())
+
+def readResponse(chunk_size=100):
+	"""Read all characters on the serial port and return them."""
+    if not port.timeout:
+        raise TypeError('Port needs to have a timeout set!')
+	
+	read_buffer=b''
+	while True:
+		byte_chunk=ser.read(size=chunk_size)
+		read_buffer += byte_chunk
+		if not len(byte_chunk) == chunk_size:
+			break
+	response = read_buffer.decode()
+
+	ser.close()
+	logging.info(response)
+	print("MODEM RESPONSE: %s" % response)
+	return response
 
 # Function for sending a Text
 def send_txt(message,number):
-	SEND_SMS = 'AT+CMGS="%s"\r'% number
+	SEND_SMS = b'AT+CMGS="%s"\r'% number
 	logging.info("Sending SMS to %s"% number)
 	print("Sending SMS to %s"% number)
-	# Open serial if required
-	if not ser.is_open:
-		logging.info("Open serial")
-		ser.open()
-	# Send the SMS
-	if ser.is_open:
-		logging.info("SMS SENT: %s" % message)
-		print("SMS SENT: %s" % message)
-		# sendCommand(OPERATE_SMS_MODE)
-		# sendCommand(SEND_SMS)
-		# sendCommand(message)
-		# sendCommand('\x1A')	#sending CTRL-Z
-		ser.close()
-		logging.info("close serial")
+	
+	
+	logging.info("SMS SENT: %s" % message)
+	print("SMS SENT: %s" % message)
+	# sendCommand(OPERATE_SMS_MODE)
+	# readResponse()
+	# # sendCommand(SEND_SMS)
+	# readResponse()
+	# # sendCommand(message)
+	# readResponse()
+	# sendCommand('\x1A')	#sending CTRL-Z
+	logging.info("close serial")
 
 # Function for receiving a Text. 
 # will respond accordingly?
@@ -320,7 +336,7 @@ def main():
 	global ID
 	global NUM
 	global ina260
-
+ 
 	warmup()
 	
 	warned = False
@@ -338,39 +354,35 @@ def main():
 		strobe_light(0.5,2)
 
 	while True:
-		
-		
 		# check water sensor
 		if check_float() == True:
-			
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
 			
 		else:
-		strobe_light(0.5,2)
-		
+		strobe_light(0.5,1)
 
-		current_voltage = ina260.get_bus_voltage()
-		# Check Voltage and send text if low
-		if current_voltage < temp_voltage - 0.1:
-			if current_voltage > 12.4:
-				warned = False
-			elif current_voltage <= 11.80:
-				logging.warning("Voltage LOW: %s" % current_voltage)
-			elif current_voltage <= 11.60 :
-				if warned == False:
-					wake_LTE()
-					send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
-					sleep_LTE()
-					warned = True
-				logging.warning("Voltage VERY LOW: %s" % current_voltage)
-			else:
-				logging.info("Voltage: %s" % current_voltage)
-			# Assign new temp voltage
-			temp_voltage = ina260.get_bus_voltage()
+		# current_voltage = ina260.get_bus_voltage()
+		# # Check Voltage and send text if low
+		# if current_voltage < temp_voltage - 0.1:
+		# 	if current_voltage > 12.4:
+		# 		warned = False
+		# 	elif current_voltage <= 11.80:
+		# 		logging.warning("Voltage LOW: %s" % current_voltage)
+		# 	elif current_voltage <= 11.60 :
+		# 		if warned == False:
+		# 			wake_LTE()
+		# 			send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+		# 			sleep_LTE()
+		# 			warned = True
+		# 		logging.warning("Voltage VERY LOW: %s" % current_voltage)
+		# 	else:
+		# 		logging.info("Voltage: %s" % current_voltage)
+		# 	# Assign new temp voltage
+		# 	temp_voltage = ina260.get_bus_voltage()
 		
-		sleep_LTE()
+		# sleep_LTE()
 		_time.sleep(30)
-		wake_LTE()
+		# wake_LTE()
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
