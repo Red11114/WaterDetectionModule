@@ -84,20 +84,40 @@ def sync_LTE(ser):
 	while active.find(b'OK') != -1:
 		ser.write(b'AT\r')
 		active += ser.readline()
-		
+
+	_time.sleep(0.5)
 	ser.write(NORMAL_FUNCTONALITY)
+	_time.sleep(1)
+	print(ser.read(ser.in_waiting))
+	_time.sleep(0.5)
+	signal = b'99'
+
+	while signal == b'99':
+		ser.write(SIGNAL_CHECK)
+		_time.sleep(0.5)
+		chunk = ser.read(ser.in_waiting)
+		print(chunk)
+		if b'OK' in chunk:
+			signal = chunk[8:-11]
+			print(signal)
+
+	ser.write(b'AT+COPS=2\r')
 	_time.sleep(0.5)
 	print(ser.read(ser.in_waiting))
-	ser.write(SIGNAL_CHECK)
 	_time.sleep(0.5)
-	print(ser.read(ser.in_waiting))
 	ser.write(ENABLE_TIME_ZONE_UPDATE)
 	_time.sleep(0.5)
 	print(ser.read(ser.in_waiting))
+	ser.write(b'AT+CREG=1\r')
+	_time.sleep(0.5)
+	print(ser.read(ser.in_waiting))
+	_time.sleep(0.5)
 	# print(ser.read(ser.in_waiting))
+	ser.write(b'AT+COPS=0\r')
+	_time.sleep(0.5)
+	print(ser.read(ser.in_waiting))
 	ser.write(TIME_QUERY)
 	_time.sleep(0.5)
-
 	# ser.reset_input_buffer()
 	read_buffer=[]
 	# print("num in waiting = %d" % ser.in_waiting)
@@ -115,6 +135,7 @@ def sync_LTE(ser):
 		local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
 	except:
 		print("fail")
+
 	print(local_time)
 	_time.sleep(0.3)
 
@@ -140,7 +161,6 @@ def sleep_LTE(ser):
 
 def wake_LTE(ser):
 	# set all devices to be active
-	strobe_light(0.1,2)
 	GPIO.output(DTR,GPIO.LOW)
 	
 	print("Returing from sleep mode")
@@ -360,7 +380,7 @@ def check_voltage(ina260):
 	current = ina260.get_current()
 
 	print(voltage,current)
-	logging.debug('%f,%f' % (voltage,current))
+	logging.debug('V=%f,I=%f' % (voltage,current))
 
 	return voltage, current
 
@@ -392,7 +412,7 @@ def warmup():
 		print("Log file could not be made")
 
 	try:
-		logging.info('Log file has been created')
+		logging.info('Log file has been created: logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
 	except:
 		print("failied to log")
 
@@ -462,7 +482,7 @@ def main():
 		# 	temp_voltage = ina260.get_bus_voltage()
 		
 		sleep_LTE(ser)
-		_time.sleep(30)
+		_time.sleep(60*10)
 		wake_LTE(ser)
 		
 		# print("waiting for SMS")
