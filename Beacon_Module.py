@@ -30,6 +30,9 @@ ECHO_OFF = b'ATE0\r'
 ENABLE_TIME_ZONE_UPDATE = b'AT+CTZU=3\r'
 TIME_QUERY = b'AT+CCLK?\r'
 SIGNAL_CHECK = b'AT+CSQ\r'
+NETWORK_REG = b'AT+CREG=1\r'
+AUTO_NETWORK = b'AT+COPS=0\r'
+DISCONNECT_NETWORK = b'AT+COPS=2\r'
 
 # Pin definitions
 ## hardware
@@ -41,10 +44,9 @@ DTR = 13
 W_DISABLE = 19
 PERST = 26
 
-
 # Function to load in settings from a json file
 def load_settings():
-	# logging.info("Loading settings")
+	logging.info("Loading settings")
 	# Open the setting file and read in the data
 	with open('settings_.json') as json_file:
 		settings = json.load(json_file)
@@ -52,13 +54,13 @@ def load_settings():
 	for s in settings['settings']:
 		ID = s['ID']
 		NUM = s['NUM']
-		# logging.info('ID loaded: ' + s['ID'])
-		# logging.info('NUM loaded: ' + s['NUM'])
+		logging.info('ID loaded: ' + s['ID'])
+		logging.info('NUM loaded: ' + s['NUM'])
 	return ID, NUM
 
 # Function to write settings to a json file
 def write_settings(ID,NUM):
-	# logging.info("Saving settings: ID - %s, NUM - %s" %(ID,NUM))
+	logging.info("Saving settings: ID - %s, NUM - %s" %(ID,NUM))
 
 	# Initialize data structre to be saved to file
 	data = {}
@@ -79,86 +81,95 @@ def sync_LTE(ser):
 	if not ser.is_open:
 		ser.open()
 		print("opening serial")
-		
-	active = b''
-	while active.find(b'OK') != -1:
-		ser.write(b'AT\r')
-		active += ser.readline()
 
-	_time.sleep(0.5)
-	ser.write(NORMAL_FUNCTONALITY)
-	_time.sleep(1)
-	print(ser.read(ser.in_waiting))
-	_time.sleep(0.5)
-	signal = b'99'
+	active = checkActive(ser,20)
 
-	while signal == b'99':
-		ser.write(SIGNAL_CHECK)
+	if active == True:
+		ser.write(NORMAL_FUNCTONALITY)
+		_time.sleep(1)
+		print(ser.read(ser.in_waiting))
 		_time.sleep(0.5)
-		chunk = ser.read(ser.in_waiting)
-		print(chunk)
-		if b'OK' in chunk:
-			signal = chunk[8:-11]
-			print(signal)
+		signal = b'99'
 
-	ser.write(b'AT+COPS=2\r')
-	_time.sleep(0.5)
-	print(ser.read(ser.in_waiting))
-	_time.sleep(0.5)
-	ser.write(ENABLE_TIME_ZONE_UPDATE)
-	_time.sleep(0.5)
-	print(ser.read(ser.in_waiting))
-	ser.write(b'AT+CREG=1\r')
-	_time.sleep(0.5)
-	print(ser.read(ser.in_waiting))
-	_time.sleep(0.5)
-	# print(ser.read(ser.in_waiting))
-	ser.write(b'AT+COPS=0\r')
-	_time.sleep(0.5)
-	print(ser.read(ser.in_waiting))
-	ser.write(TIME_QUERY)
-	_time.sleep(0.5)
-	# ser.reset_input_buffer()
-	read_buffer=[]
-	# print("num in waiting = %d" % ser.in_waiting)
-	while ser.in_waiting != 0:
-		chunk=ser.readline()[:-2]	# remove the '\r\n'
-		read_buffer.append(chunk.decode())
-		# print(chunk)
-	
-	ser.close()
+		while signal == b'99':
+			ser.write(SIGNAL_CHECK)
+			_time.sleep(0.5)
+			chunk = ser.read(ser.in_waiting)
+			print(chunk)
+			if b'OK' in chunk:
+				signal = chunk[8:-11]
+				print(signal)
 
-	print(read_buffer)
-	modem_time = read_buffer[1][:-4]
-	print(modem_time)
-	try:
-		local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
-	except:
-		print("fail")
+		ser.write(DISCONNECT_NETWORK)
+		_time.sleep(0.3)
 
-	print(local_time)
-	_time.sleep(0.3)
+		print(ser.read(ser.in_waiting))
+		_time.sleep(0.3)
 
-	return local_time
+		ser.write(ENABLE_TIME_ZONE_UPDATE)
+		_time.sleep(0.3)
+
+		print(ser.read(ser.in_waiting))
+		_time.sleep(0.3)
+
+		ser.write(NETWORK_REG)
+		_time.sleep(0.3)
+
+		print(ser.read(ser.in_waiting))
+		_time.sleep(0.3)
+
+		ser.write(AUTO_NETWORK)
+		_time.sleep(0.3)
+
+		print(ser.read(ser.in_waiting))
+		_time.sleep(0.3)
+
+		ser.write(TIME_QUERY)
+		_time.sleep(0.3)
+		
+		read_buffer=[]
+		while ser.in_waiting != 0:
+			chunk=ser.readline()[:-2]	# remove the '\r\n'
+			read_buffer.append(chunk.decode())
+		ser.close()
+
+		# print(read_buffer)
+		modem_time = read_buffer[1][:-4]
+		# print(modem_time)
+		try:
+			local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
+			utc_time = local_time.year + local_time.month + local_time.day + '' + local_time.hour + ':' + local_time.minute + ':' + local_time.second
+			os.system('sudo date -u --set="%s"' % utc_time)
+			sys.exit()
+
+			return local_time
+		except:
+			print("failed to set time")
+	return None
 
 def sleep_LTE(ser):
 	# set SMS module to sleep
 	if not ser.is_open:
 		ser.open()
 
-	print("Going into sleep mode")
-	logging.info("Going into sleep mode")
+	active = checkActive(ser,60)
 
-	sendCommand(ser,MIN_FUNCTONALITY)
-	readResponse(ser)
-	sendCommand(ser,ENABLE_SLEEP)
-	readResponse(ser)
+	if active == True:
+		print("Going into sleep mode")
+		logging.info("Going into sleep mode")
 
-	ser.close()
-	GPIO.output(DTR, GPIO.HIGH)
-	_time.sleep(0.1)
+		sendCommand(ser,MIN_FUNCTONALITY)
+		readResponse(ser)
+		sendCommand(ser,ENABLE_SLEEP)
+		readResponse(ser)
+
+		ser.close()
+		GPIO.output(DTR, GPIO.HIGH)
+		_time.sleep(0.1)
+	else:
+		print("Unable to go into sleep mode: device unresponsive")
+		logging.error("Unable to go into sleep mode: device unresponsive"")
 		
-
 def wake_LTE(ser):
 	# set all devices to be active
 	GPIO.output(DTR,GPIO.LOW)
@@ -166,18 +177,25 @@ def wake_LTE(ser):
 	print("Returing from sleep mode")
 	logging.info("Returing from sleep mode")
 
-	active = []
-	while 'OK' not in active:
-		sendCommand(ser,b'AT\r')
-		active = readResponse(ser)
-		
-	sendCommand(ser,NORMAL_FUNCTONALITY)
-	readResponse(ser)
-	_time.sleep(0.3)
-	# logging.info('SMS module is active has been completed')
+	active = checkActive(ser,60)
 
+	if active == True:
+		sendCommand(ser,NORMAL_FUNCTONALITY)
+		readResponse(ser)
+		_time.sleep(0.3)
+		logging.info('SMS module is now active')
+	else:
+		logging.error('SMS module was unable to wake from sleep')
 
-	
+def checkActive(ser,time_out):
+	temp_time = _time.perf_counter()
+	active = b''
+	while active.find(b'OK') != -1 and (_time.perf_counter() - time_out < temp_time):
+		ser.write(b'AT\r')
+		active += ser.readline()
+		return True
+	return False
+
 # Function for sending AT commands
 def sendCommand(ser,command): 
 	if not ser.is_open:
@@ -187,8 +205,9 @@ def sendCommand(ser,command):
 	print("MODEM COMMAND: %s" % command.decode())
 	
 	ser.write(command)
-	_time.sleep(0.5)
+	_time.sleep(0.3)
 	ser.readline()
+	_time.sleep(0.1)
 
 def readResponse(ser):
 	# Read all characters on the serial port and return them.
@@ -201,32 +220,37 @@ def readResponse(ser):
 	while ser.in_waiting != 0:
 		chunk=ser.readline()[:-2]	# remove the '\r\n'
 		read_buffer.append(chunk.decode())
-	
 	ser.close()
-	response = read_buffer
 
-	for lines in response:
+	for lines in read_buffer:
 		logging.info('MODEM RESPONSE: %s' % lines)
 		print("MODEM RESPONSE: %s" % lines)
 	
-	return response
+	return read_buffer
 
 # Function for sending a Text
-def send_txt(message,number):
+def send_txt(ser,message,number):
 	SEND_SMS = b'AT+CMGS="%s"\r'% number
-	# logging.info("Sending SMS to %s"% number)
-	print("Sending SMS to %s"% number)
-	
-	# logging.info("SMS SENT: %s" % message)
-	print("SMS SENT: %s" % message)
-	# sendCommand(ser,OPERATE_SMS_MODE)
-	# readResponse(ser)
-	# # sendCommand(ser,SEND_SMS)
-	# readResponse(ser)
-	# # sendCommand(ser,message)
-	# readResponse(ser)
-	# sendCommand(ser,'\x1A')	#sending CTRL-Z
-	# logging.info("close serial")
+
+	wake_LTE()
+
+	active = checkActive(ser,10)
+	if active == True:
+		logging.info("Sending SMS, %s : %s" % (number,message))
+		print("Sending SMS to, %s : %s" % (number,message))
+		sendCommand(ser,OPERATE_SMS_MODE)
+		readResponse(ser)
+		sendCommand(ser,SEND_SMS)
+		readResponse(ser)
+		sendCommand(ser,message)
+		readResponse(ser)
+		sendCommand(ser,'\x1A')	#sending CTRL-Z not sure if needed
+		readResponse(ser)
+	else:
+		logging.info("Unable to send SMS: module unresponsive, %s : %s" % (number,message))
+		print("Unable to send SMS: module unresponsive, %s : %s" % (number,message))
+
+	sleep_LTE()
 
 # Function for receiving a Text. 
 # will respond accordingly?
@@ -276,104 +300,84 @@ def receive_txt():
 		return number, text_msg
 	return None,None
 
-# Fucntion to start a timer while waiting for a response
-def receive_confirmation(timer):
-	global ID
-	global confirming
-	# Begin timer for how long to wait for confirmation
-	confirming = True
-	# logging.info("Starting timer for %s seconds" % timer)
-	time = _time.perf_counter()
-	while _time.perf_counter() < time + timer:
-		# Create count down
-		clock = timer - (_time.perf_counter() - time)
-		# logging.info("Countdown: %d" % clock)
-		print("Countdown: %d" % clock)
-		txt_number, txt_msg = receive_txt()
-		if txt_msg != None:
-			# Check if the Modules ID number is included
-			if (txt_msg.find(ID) != -1):
-				# logging.info("Received confirmation reply: %s" % txt_msg)
-				# Check what command was sent
-				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
-					confirming = False
-					# logging.info('Confirmed yes')
-					strobe_light(0.2,5)
-					return True
-				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
-					confirming = False
-					logging.info('Confirmed no')
-					return False
-				else:
-					# logging.warning("Confirmation not correctly spelt")
-					send_txt('Confirmation spelt incorrectly',txt_number)
-			else:
-				# logging.warning('Incorrect format, reply: %s yes/no' % ID)
-				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
+# # Fucntion to start a timer while waiting for a response
+# def receive_confirmation(timer):
+# 	global ID
+# 	global confirming
+# 	# Begin timer for how long to wait for confirmation
+# 	confirming = True
+# 	# logging.info("Starting timer for %s seconds" % timer)
+# 	time = _time.perf_counter()
+# 	while _time.perf_counter() < time + timer:
+# 		# Create count down
+# 		clock = timer - (_time.perf_counter() - time)
+# 		# logging.info("Countdown: %d" % clock)
+# 		print("Countdown: %d" % clock)
+# 		txt_number, txt_msg = receive_txt()
+# 		if txt_msg != None:
+# 			# Check if the Modules ID number is included
+# 			if (txt_msg.find(ID) != -1):
+# 				# logging.info("Received confirmation reply: %s" % txt_msg)
+# 				# Check what command was sent
+# 				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
+# 					confirming = False
+# 					# logging.info('Confirmed yes')
+# 					strobe_light(0.2,5)
+# 					return True
+# 				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
+# 					confirming = False
+# 					logging.info('Confirmed no')
+# 					return False
+# 				else:
+# 					# logging.warning("Confirmation not correctly spelt")
+# 					send_txt('Confirmation spelt incorrectly',txt_number)
+# 			else:
+# 				# logging.warning('Incorrect format, reply: %s yes/no' % ID)
+# 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
 				
-		_time.sleep(1)
-	# logging.info("TIMER OUT")
-	confirming = False
-	return None
+# 		_time.sleep(1)
+# 	# logging.info("TIMER OUT")
+# 	confirming = False
+# 	return None
 
 # Function to strobe the light
 def strobe_light(secconds, count):
 	# logging.info("Strobe light :)")
 	i = 0
 	while i < count:
-		GPIO.output(22, GPIO.HIGH)
+		GPIO.output(STROBE, GPIO.HIGH)
 		_time.sleep(secconds)
-		GPIO.output(22, GPIO.LOW)
+		GPIO.output(STROBE, GPIO.LOW)
 		_time.sleep(secconds)
 		i +=1
 
 # Alerts the user by SMS
 def check_float():
 	# initialise active check time
-	check_time = _time.perf_counter()
+	temp_time = _time.perf_counter()
 	false_detect_time = 5
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0:
-		if _time.perf_counter() - check_time > false_detect_time:
-			# logging.info("The float was activated for %s seconds" % false_detect_time)
+		if _time.perf_counter() - temp_time > false_detect_time:
+			logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
 			
 			return True
-		_time.sleep(1)
+		_time.sleep(0.5)
 	return False
 		
 def check_button():
 	# initialise active check time
-	check_time = _time.perf_counter()
-	false_detect_time = 5
+	temp_time = _time.perf_counter()
+	false_detect_time = 4
 	# Check if the button is high for the false_detect_time
 	while GPIO.input(27) == 0:
-		if _time.perf_counter() - check_time > false_detect_time:
+		if _time.perf_counter() - temp_time > false_detect_time:
 			# logging.info("The button was held for at least %s seconds when the device was booted" % false_detect_time)
 			strobe_light(0.2,4)
 			return True
-		_time.sleep(1)
+		_time.sleep(0.5)
 	return False
-
-	# The button is considered pressed
-	# if check == True:
-	# 	strobe_light(0.1,2)
-	# 	send_txt('Button has been pressed on module %s, Do you wish to reset the Float switch? Reply: %s yes/no, within %s minutes' % (ID, ID, confirmation_time),NUM)
-	# 	# Start a confirmation receive for x seconds
-	# 	confirmation = receive_confirmation(confirmation_time*60)
-	# 	if confirmation == True:
-	# 		print("Resetting the float switch detection")
-	# 		try:
-	# 			GPIO.add_event_detect(17, GPIO.FALLING, callback=float_pressed, bouncetime=1500) 
-	# 			logging.info("Event detect enabled for float switch")
-	# 			send_txt('Float switch has been activated',NUM)
-	# 		except:
-	# 			logging.warning("Event detect could not be enabled for float switch")
-	# 			pass
-	# 	elif confirmation == False:
-	# 		send_txt('Reset Declined',NUM)
-	# 	elif confirmation == None:
-	# 		send_txt('Timer ran out',NUM)
 
 def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
@@ -403,25 +407,34 @@ def warmup():
 	ser = serial.Serial(port=SERIAL_PORT,baudrate=SERIAL_RATE,timeout=2,write_timeout=2)
 
 	local_time=sync_LTE(ser)
-	
-	# Setup logging
-	print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
-	try:
-		logging.basicConfig(filename='logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
-	except:
-		print("Log file could not be made")
+	if local_time != None:
+		# Setup logging
+		print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
+		try:
+			logging.basicConfig(filename='logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
+			logging.info('Log file has been created: logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
+		except:
+			print("Log file could not be made")
+	else:
+		print("Modem was unable to sync time")
+		try:
+			logging.basicConfig(filename='logs/PI_CLK.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG))
+		except:
+			print("unable to create logfile using Pi's Clock")
 
-	try:
-		logging.info('Log file has been created: logs/%s-%s-%s_%s-%s-%s.log' % (local_time.day,local_time.month,local_time.year,local_time.hour,local_time.minute,local_time.second))
-	except:
-		print("failied to log")
+	active = checkActive(ser,10)
+	if active == True:
+		# Configure modem settings
+		logging.info("Setup modem settings")
+		sendCommand(ser,ECHO_OFF) # removes echo
+		readResponse(ser)
+		sendCommand(ser,ALLOW_AIRPLANE_MODE)
+		readResponse(ser)
 
-	# Configure modem settings
-	logging.info("Setup modem settings")
-	sendCommand(ser,ECHO_OFF) # removes echo
-	readResponse(ser)
-	sendCommand(ser,ALLOW_AIRPLANE_MODE)
-	readResponse(ser)
+		# Put the LTE module to sleep to save power
+		sleep_LTE(ser)
+	else:
+		logging.error("Unable to setup modem settings: device unresponsive")
 
 	logging.info("Initialise and reset INA260 chip")
 	ina260 = INA260(dev_address=0x40)
@@ -433,57 +446,38 @@ def warmup():
 
 # MAIN gets called on script startup
 def main():
+	if check_button() == True:
+		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
+		strobe_light(1,10)
+		temp_time = _time.perf_counter()
+		time_out = 5*60
+		while (_time.perf_counter() - time_out) < temp_time:
+			# do somthing to promt user for change of phone number/module number
+			# restart after exiting config mode if any settings have been changed
+
 	ina260,ser = warmup()
 
 	# Load settings from settings_.json
 	ID, NUM = load_settings()
-
-	# warned = False
-	temp_voltage, temp_current = check_voltage(ina260)
-	config_mode=check_button()
-
-	if config_mode == True:
-		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
-		strobe_light(1,10)
-
-		# do somthing to promt user for change of phone number/module number
-		# restart after exiting config mode if any settings have been changed
-		config_mode = False
-	else:
-		strobe_light(0.5,2)
 
 	while True:
 		# check water sensor
 		if check_float() == True:
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
 			
-		else:
-			strobe_light(0.5,1)
-
 		temp_voltage, temp_current = check_voltage(ina260)
-
-		# current_voltage = ina260.get_bus_voltage()
-		# # Check Voltage and send text if low
-		# if current_voltage < temp_voltage - 0.1:
-		# 	if current_voltage > 12.4:
-		# 		warned = False
-		# 	elif current_voltage <= 11.80:
-		# 		logging.warning("Voltage LOW: %s" % current_voltage)
-		# 	elif current_voltage <= 11.60 :
-		# 		if warned == False:
-		# 			wake_LTE()
-		# 			send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
-		# 			sleep_LTE()
-		# 			warned = True
-		# 		logging.warning("Voltage VERY LOW: %s" % current_voltage)
-		# 	else:
-		# 		logging.info("Voltage: %s" % current_voltage)
-		# 	# Assign new temp voltage
-		# 	temp_voltage = ina260.get_bus_voltage()
+		if temp_voltage > 12.2:
+			warned = False
+		elif temp_voltage <= 11.80:
+			logging.warning("Voltage LOW: %sV" % temp_voltage)
+		elif temp_voltage <= 11.60 :
+			if warned == False:
+				send_txt("Module %s, Low Battery Warning: %sV" % (ID,temp_voltage),NUM)
+				warned = True
+			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
 		
-		sleep_LTE(ser)
 		_time.sleep(60*10)
-		wake_LTE(ser)
+		
 		
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
