@@ -133,13 +133,16 @@ def sync_LTE(ser):
 			read_buffer.append(chunk.decode())
 		ser.close()
 
-		# print(read_buffer)
+		pi_clock = datetime.datetime.now()
+		print("Pi clock time: %s" % pi_clock)
 		modem_time = read_buffer[1][:-4]
-		# print(modem_time)
 		try:
 			local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
+			print("local time: %s" % local_time)
 			utc_time = local_time.year + local_time.month + local_time.day + '' + local_time.hour + ':' + local_time.minute + ':' + local_time.second
 			os.system('sudo date -u --set="%s"' % utc_time)
+			pi_clock = datetime.datetime.now()
+			print("Pi clock time: %s" % pi_clock)
 			sys.exit()
 
 			return local_time
