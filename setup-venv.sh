@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /home/pi/WaterDetectionModule
+cd /home/pi/waterdetectionmodule
 rm -rf env
 
 python3 -m venv env

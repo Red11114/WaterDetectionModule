@@ -6,6 +6,9 @@ def main():
 	modem.connect()
 	modem.modeSelect("sms")
 	modem.getAllSMS()
+	modem.requestTime()
+	modem.signalTest()
+	modem.disconnect()
 	print("end")
 
 if __name__ == "__main__":
