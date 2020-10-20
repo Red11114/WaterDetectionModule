@@ -3,15 +3,18 @@ import time
 import sys
 from datetime import datetime
 
+SAVE_PARAMETERS = b'AT&W'
+LOAD_PARAMETERS = b'ATZ'
 OPERATE_SMS_MODE = b'AT+CMGF=1\r'
-RECEIVE_SMS = b'AT+CMGL="REC UNREAD"\r\n'
+RECEIVE_UNREAD = b'AT+CMGL="REC UNREAD"\r\n'
+RECEIVE_READ = b'AT+CMGL="REC READ"\r\n'
+RECEIVE_ALL = b'AT+CMGL="ALL"\r\n'
 CLEAR_READ = b'AT+CMGD=1,1\r'
-# ALLOW_AIRPLANE_MODE = b'AT+QCFG="airplanecontrol",1\r'
-# MIN_FUNCTONALITY = b'AT+CFUN=0\r'
-# NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
+CLEAR_ALL = b'AT+CMGD=1,4\r'
+MIN_FUNCTONALITY = b'AT+CFUN=0\r'
+NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
 DISABLE_SLEEP = b'AT+QSCLK=0\r'
 ENABLE_SLEEP = b'AT+QSCLK=1\r'
-# ECHO_OFF = b'ATE0\r'
 ENABLE_TIME_ZONE_UPDATE = b'AT+CTZU=1\r'
 TIME_QUERY = b'AT+CCLK?\r'
 SIGNAL_CHECK = b'AT+CSQ\r'
@@ -22,39 +25,49 @@ DISCONNECT_NETWORK = b'AT+COPS=2\r'
 class smsModem(object):
     def __init__(self):
         self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, timeout=2, write_timeout=2)
-        #... xonxoff = False, rtscts = False, bytesize = serial.EIGHTBITS, parity = serial.PARITY_NONE, stopbits = serial.STOPBITS_ONE)
-        time.sleep(1)
-  
-    def connect(self):
+
+    def connect(self, timeout=10):
         if not self.ser.is_open:
             self.ser.open()
-        
-        i=0
-        while i < 10:
+
+        self.ser.flushInput()
+        self.ser.flushOutput()
+
+        temp_time = time.perf_counter()
+        while (time.perf_counter() - temp_time < timeout):
             self.SendCommand(b'AT\r')
             time.sleep(1)
             data = self.ReadAll()
             if b'OK' in data:
                 print("Serial comms active")
                 return
-            i=i+1
     
     def disconnect(self):
         if self.ser.is_open:
             self.ser.close()
         
+    def reset(self):
+        self.SendCommand(LOAD_PARAMETERS)
+
+    def saveConfig(self):
+        self.SendCommand(SAVE_PARAMETERS)
+
     def ReadLine(self):
         data = self.ser.readline()
+        time.sleep(0.5)
         print(data)
         return data
 
     def ReadAll(self):
         data=self.ser.read(self.ser.in_waiting)
+        time.sleep(0.5)
         print(data)
         return data
 
     def SendCommand(self,command, getline=True):
         self.ser.write(command)
+        time.sleep(0.5)
+        
         data = ''
         if getline:
             data=self.ReadLine()
@@ -62,15 +75,27 @@ class smsModem(object):
 
     def modeSelect(self,mode):
         if mode == "sms":
+            self.SendCommand(NORMAL_FUNCTONALITY)
+            self.ReadLine()
             self.SendCommand(OPERATE_SMS_MODE)
+            self.ReadLine()
         elif mode == "sleep":
+            self.SendCommand(MIN_FUNCTONALITY)
+            self.ReadLine()
             self.SendCommand(ENABLE_SLEEP)
+            self.ReadLine()
 
-    def getAllSMS(self):
+    def getSMS(self,mode="UNREAD"):
         self.ser.flushInput()
         self.ser.flushOutput()
 
-        self.SendCommand(RECEIVE_SMS)
+        if mode == "UNREAD":
+            self.SendCommand(RECEIVE_UNREAD)
+        elif mode == "READ":
+            self.SendCommand(RECEIVE_READ)
+        elif mode == "ALL":
+            self.SendCommand(RECEIVE_ALL)
+
         data = self.ReadAll()
         if b'+CMGL: ' in data:
             data = data.split(b'\n')
@@ -85,26 +110,34 @@ class smsModem(object):
             return texts
         else:
             return data
+    
+    def clearMessage(self,mode="all"):
+        if mode == "read":
+            self.SendCommand(CLEAR_READ)
+        elif mode == "all":
+            self.SendCommand(CLEAR_ALL)
+        time.sleep(4)
+        print(self.ReadAll())
 
-    def sendMessage(self, recipient="+61448182742", message="TextMessage.content not set."):
+    def sendMessage(self, recipient=b'+61448182742', message=b'TextMessage.content not set.'):
         self.SendCommand(OPERATE_SMS_MODE)
-        time.sleep(1)
-        self.SendCommand('''AT+CMGS="''' + recipient + '''"\r''')
-        time.sleep(1)
-        self.SendCommand(message + "\r")
-        time.sleep(1)
-        self.SendCommand(chr(26))
-        time.sleep(1)
+        self.ReadLine()
+        self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
+        self.ReadLine()
+        self.SendCommand(b'%b\r' % message)
+        self.ReadLine()
+        self.SendCommand(b'\x1a')
+        self.ReadLine()
 
     def refreshNetwork(self):
         self.SendCommand(DISCONNECT_NETWORK)
-        time.sleep(1)
+        self.ReadLine()
         self.SendCommand(ENABLE_TIME_ZONE_UPDATE)
-        time.sleep(1)
+        self.ReadLine()
         self.SendCommand(AUTO_NETWORK)
-        time.sleep(1)
+        self.ReadLine()
         self.SendCommand(NETWORK_REG)
-        time.sleep(1)
+        self.ReadLine()
         
     def requestTime(self):
         self.SendCommand(TIME_QUERY)
@@ -116,16 +149,15 @@ class smsModem(object):
             print(data)
         return data
     
-    def signalTest(self):
+    def signalTest(self, timeout=10):
         signal = b'99'
-        i=0
-        while signal == b'99' and i < 10:
+        temp_time = time.perf_counter()
+        while signal == b'99' and (time.perf_counter() - temp_time < timeout):
                 self.SendCommand(SIGNAL_CHECK)
                 time.sleep(1)
                 data = self.ReadAll()
                 if b'OK' in data:
                     signal = data[6:8]
                     print(signal)
-                i=i+1
                 time.sleep(1)
         return signal
