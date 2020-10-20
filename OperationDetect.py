@@ -14,6 +14,9 @@ import threading
 import RPi.GPIO as GPIO
 import serial
 
+# Import drivers
+from INA260_MINIMAL import INA260
+
 ID = ""
 NUM = ""
 
@@ -68,6 +71,12 @@ def write_settings():
 		json.dump(data, outfile,indent=4)
 
 def warmup():
+	global ina260
+
+	ina260 = INA260(dev_address=0x40)
+	ina260.reset_chip()
+	_time.sleep(1)
+	
 	# Setup logging
 	datetime_object = datetime.now()
 	print("Current Date: %s-%s-%s, and Time: %s:%s:%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
@@ -84,6 +93,8 @@ def warmup():
 	GPIO.add_event_detect(17, GPIO.FALLING, callback=float_pressed, bouncetime=1500)  
 	GPIO.add_event_detect(27, GPIO.FALLING, callback=button_pressed, bouncetime=1500)
 	strobe_light(0.1,2)
+	logging.info("Initialise and reset INA260 chip")
+	
 
 	if not ser.is_open:
 		print("open serial")
@@ -112,10 +123,10 @@ def send_txt(message,number):
 	if ser.is_open:
 		logging.info("SMS SENT: %s" % message)
 		print("SMS SENT: %s" % message)
-		sendCommand(OPERATE_SMS_MODE)
-		sendCommand(SEND_SMS)
-		sendCommand(message)
-		sendCommand('\x1A')	#sending CTRL-Z
+		# sendCommand(OPERATE_SMS_MODE)
+		# sendCommand(SEND_SMS)
+		# sendCommand(message)
+		# sendCommand('\x1A')	#sending CTRL-Z
 		ser.close()
 		logging.info("close serial")
 
@@ -131,22 +142,22 @@ def receive_txt():
 	# Check if there is any unread texts
 	sendCommand(RECEIVE_SMS)
 	# sendCommand('\x1A')
-	_time.sleep(1)
+	_time.sleep(0.2)
 	reply = ser.read(ser.in_waiting).decode()
 	# Split the reply inot individual responses
 	reply_lines = reply.split("\n")
-	print("RECEIVE_SMS Response: %s" % reply_lines)
-	logging.info("RECEIVE_SMS Response: %s" % reply_lines)
+	print("MODEM Response: %s" % reply_lines)
+	# logging.info("MODEM Response: %s" % reply_lines)
 	# Check if the reply contains a received SMS
 	if "cmgl:" in reply.lower():
 		logging.info('Found CMGL: in serial response: %s' % reply_lines)
 		
 		print("Reply_lines %s" % reply_lines)
-		# Create info list of received SMS response
+		# Find index of response that contains the SMS
 		for i in range(len(reply_lines)):
 			if reply_lines[i].find("CMGL: ") != -1:
 				response_index = i
-				print("Unread message at index: %s"% i)
+				print("response at index: %s"% i)
 		info_list = reply_lines[response_index]
 		logging.info('SMS info list from serial: %s' % info_list)
 		info_list = info_list.split(",")
@@ -226,7 +237,7 @@ def float_pressed(channel):
 	# initialise active check time
 	check = False
 	check_time = _time.perf_counter()
-	false_detect_time = 5
+	false_detect_time = 20
 	confirmation_time = 30
 	# Check if the float swich is high for the false_detect_time
 	while GPIO.input(17) == 0 and check == False:
@@ -298,24 +309,48 @@ def main():
 	global ID
 	global NUM
 	global confirming
+	global ina260
 	log = 0
-	
+
 	warmup()
-	# Enter loop for receiving SMS's
+	
 	confirming = False
+	warned = False
+	temp_voltage = ina260.get_bus_voltage()
+
+	# Enter loop for receiving SMS's
 	while True:
 		if confirming == False:
-			if log % 30 == 0:
+			current_voltage = ina260.get_bus_voltage()
+			# Check Voltage and send text if low
+			if current_voltage < temp_voltage - 0.1:
+				if 12.50 <= current_voltage:
+					warned = False
+				elif 11.60 < current_voltage <= 11.80:
+					logging.warning("Voltage LOW: %s" % current_voltage)
+				elif current_voltage <= 11.60 :
+					if warned == False:
+						send_txt("Module %s: Low Battery Warning-%sV" % (ID,current_voltage),NUM)
+						warned = True
+					logging.warning("Voltage VERY LOW: %s" % current_voltage)
+				else:
+					logging.info("Voltage: %s" % current_voltage)
+					
+				# Assign new temp voltage
+				temp_voltage = ina260.get_bus_voltage()
+			if log % 3 == 0:
 				print("waiting for SMS")
-				logging.info("Waiting for SMS")
+				logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
+			# check if there has been a text received
+
 			# check if there has been a text received
 			txt_number, txt_msg = receive_txt()
 			if txt_msg != None:
 				# make sure the text include the modules ID
 				if ID in txt_msg:
 					logging.info("Text has correct ID for module")
-					# check if the text includes "change"
-					if "change" in txt_msg.lower():
+					# check if the text includes "change" or "status"
+					if txt_msg.find("change") != -1 or txt_msg.find("Change") != -1:
 						logging.info("Change number requested")
 						# Find the number after the "#"
 						if "#" in txt_msg:
@@ -347,17 +382,19 @@ def main():
 						strobe_light(0.5,1)
 						# Return status of the device
 						if GPIO.input(17) == 0:
-							send_txt('Status Report for module %s: Float switch triggered, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%0.2f, Float switch triggered, Saved number is %s' % (ID,current_voltage,NUM), txt_number)
 						elif GPIO.input(17) == 1:
-							send_txt('Status Report for module %s: Float switch not triggered, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%0.2f, Float switch not triggered, Saved number is %s' % (ID,current_voltage,NUM), txt_number)
 						else:
-							send_txt('Status Report for module %s: Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,NUM), txt_number)
+							send_txt('Status Report for module %s: Voltage=%0.2f, Float switch in undefined state please check and restart the device, Saved number is %s' % (ID,current_voltage,NUM), txt_number)
+
 					else:
-						print("Correct ID received but command not recognised")
-						logging.warning("Correct ID received but command not recognised")
+						print("Correct ID(%s) received but command not recognised" % ID)
+						logging.warning("Correct ID(%s) received but command not recognised" % ID)
 						send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
 		log += 1
-		_time.sleep(2)
+		_time.sleep(10)
+
 
 if __name__ == "__main__":
 	try:

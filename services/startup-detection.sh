@@ -15,4 +15,5 @@ else
 fi
 
 # Run the main script
-python3 OperationDetect.py
+# python3 services/parallel_processing.py
+python3 Beacon_Module.py

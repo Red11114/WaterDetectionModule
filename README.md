@@ -64,6 +64,11 @@ ssh pi@raspberrypi.local
 ```
 If prompted to continue connecting respond "yes"
 
+In VSCode with rmate installed
+```
+ssh -R 52698:127.0.0.1:52698 pi@hostname
+```
+
 #### Windows:
 Install Putty
 
@@ -114,6 +119,38 @@ NOTE: After changing the hostname the ssh command must include the new hostname
 Example:
 ```
 ssh pi@testpi2.local
+```
+### Enable SPI and I2C
+
+```
+sudo raspi-config
+```
+
+Select Interface Options > I2C/SPI
+
+Save the changes and reboot
+
+```
+sudo reboot
+```
+
+### Check I2C and SPI connection
+
+For 12C run the following command and compare with result
+```
+sudo i2cdetect -y 1
+```
+Result:
+```
+
+```
+For SPI run the following command and compare with result
+```
+ls -l /dev/spidev*
+```
+Result:
+```
+
 ```
 
 ### Get Updates
@@ -176,7 +213,6 @@ First activate the virtual environment
 ```
 pip install -r requirements.txt
 ```
-
 To check currently installed packages type
 ```
 pip freeze
