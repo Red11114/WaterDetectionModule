@@ -6,6 +6,7 @@
 import os, stat
 import logging
 from datetime import datetime
+from datetime import date
 import json
 import time as _time
 import threading
@@ -75,18 +76,21 @@ def write_settings(ID,NUM):
 
 # no logging allowed in this function
 def sync_LTE(ser):
-	print("sync")
 	GPIO.output(DTR,GPIO.LOW)
 
 	if not ser.is_open:
 		ser.open()
 		print("opening serial")
 
-	active = checkActive(ser,20)
+	active = checkActive(ser,40)
 
 	if active == True:
+
+
+
 		ser.write(NORMAL_FUNCTONALITY)
 		_time.sleep(1)
+
 		print(ser.read(ser.in_waiting))
 		_time.sleep(0.5)
 		signal = b'99'
@@ -126,24 +130,41 @@ def sync_LTE(ser):
 
 		ser.write(TIME_QUERY)
 		_time.sleep(0.3)
-		
-		read_buffer=[]
-		while ser.in_waiting != 0:
-			chunk=ser.readline()[:-2]	# remove the '\r\n'
-			read_buffer.append(chunk.decode())
-		ser.close()
 
-		pi_clock = datetime.datetime.now()
+		modem_time = ser.read(ser.in_waiting)
+		print(modem_time)
+
+		if b'OK' in modem_time:
+			modem_time = modem_time[10:27].decode()
+			print(modem_time)
+			modem_time = datetime.strptime(modem_time, '%y/%m/%d,%H:%M:%S')
+			print(modem_time)
+		else:
+			print("failed to get time")
+		# read_buffer=[]
+		# while ser.in_waiting != 0:
+		# 	chunk=ser.readline()[:-2]	# remove the '\r\n'
+		# 	read_buffer.append(chunk.decode())
+		# ser.close()
+		# print(read_buffer)
+
+		pi_clock = datetime.now()
 		print("Pi clock time: %s" % pi_clock)
-		modem_time = read_buffer[1][:-4]
+	
 		try:
-			local_time = datetime.strptime(modem_time, '+CCLK: "%y/%m/%d,%H:%M:%S')
+			
 			print("local time: %s" % local_time)
-			utc_time = local_time.year + local_time.month + local_time.day + '' + local_time.hour + ':' + local_time.minute + ':' + local_time.second
-			os.system('sudo date -u --set="%s"' % utc_time)
-			pi_clock = datetime.datetime.now()
+			#print(local_time.month)
+			#utc_time =  local_time.strftime("%Y-%m-%d %H:%M:%S")
+			#local_time.year + local_time.month + local_time.day + "" + local_time.hour + ":" + local_time.minute + ":" + local_time.second
+			#print("Utc time: %s" % utc_time)
+			print(_time.ctime())
+			cmd = 'sudo date --set "%s"' % local_time
+			print("cmd = %s" % cmd)
+			os.system(cmd)
+			print(_time.ctime())
+			pi_clock = datetime.now()
 			print("Pi clock time: %s" % pi_clock)
-			sys.exit()
 
 			return local_time
 		except:
@@ -171,12 +192,12 @@ def sleep_LTE(ser):
 		_time.sleep(0.1)
 	else:
 		print("Unable to go into sleep mode: device unresponsive")
-		logging.error("Unable to go into sleep mode: device unresponsive"")
-		
+		logging.error("Unable to go into sleep mode: device unresponsive")
+
 def wake_LTE(ser):
 	# set all devices to be active
 	GPIO.output(DTR,GPIO.LOW)
-	
+
 	print("Returing from sleep mode")
 	logging.info("Returing from sleep mode")
 
@@ -193,20 +214,30 @@ def wake_LTE(ser):
 def checkActive(ser,time_out):
 	temp_time = _time.perf_counter()
 	active = b''
-	while active.find(b'OK') != -1 and (_time.perf_counter() - time_out < temp_time):
+	print("Check modem is active")
+	if not ser.is_open:
+		ser.open()
+
+	while (_time.perf_counter() - time_out < temp_time):
 		ser.write(b'AT\r')
-		active += ser.readline()
-		return True
+		_time.sleep(0.3)
+		active = ser.read(ser.in_waiting)
+		_time.sleep(0.3)
+		print(active)
+		if active.find(b'OK') != -1:
+			print("Modem active")
+			return True
+	print("Modem inactive")
 	return False
 
 # Function for sending AT commands
-def sendCommand(ser,command): 
+def sendCommand(ser,command):
 	if not ser.is_open:
 		ser.open()
-	
+
 	logging.info("MODEM COMMAND: %s" % command.decode())
 	print("MODEM COMMAND: %s" % command.decode())
-	
+
 	ser.write(command)
 	_time.sleep(0.3)
 	ser.readline()
@@ -216,7 +247,7 @@ def readResponse(ser):
 	# Read all characters on the serial port and return them.
 	if not ser.timeout:
 		raise TypeError('Port needs to have a timeout set!')
-	
+
 	# ser.reset_input_buffer()
 	read_buffer=[]
 	# print("num in waiting = %d" % ser.in_waiting)
@@ -228,7 +259,7 @@ def readResponse(ser):
 	for lines in read_buffer:
 		logging.info('MODEM RESPONSE: %s' % lines)
 		print("MODEM RESPONSE: %s" % lines)
-	
+
 	return read_buffer
 
 # Function for sending a Text
@@ -255,7 +286,7 @@ def send_txt(ser,message,number):
 
 	sleep_LTE()
 
-# Function for receiving a Text. 
+# Function for receiving a Text.
 # will respond accordingly?
 def receive_txt():
 	# logging.info("Attempt to receive text")
@@ -275,7 +306,7 @@ def receive_txt():
 	# Check if the reply contains a received SMS
 	if reply.find("CMGL: ") != -1:
 		# logging.info('Found CMGL: in serial response')
-		
+
 		print("Reply_lines %s" % reply_lines)
 		# Find index of response that contains the SMS
 		for i in range(len(reply_lines)):
@@ -337,7 +368,6 @@ def receive_txt():
 # 			else:
 # 				# logging.warning('Incorrect format, reply: %s yes/no' % ID)
 # 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
-				
 # 		_time.sleep(1)
 # 	# logging.info("TIMER OUT")
 # 	confirming = False
@@ -364,11 +394,11 @@ def check_float():
 		if _time.perf_counter() - temp_time > false_detect_time:
 			logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
-			
+
 			return True
 		_time.sleep(0.5)
 	return False
-		
+
 def check_button():
 	# initialise active check time
 	temp_time = _time.perf_counter()
@@ -421,11 +451,11 @@ def warmup():
 	else:
 		print("Modem was unable to sync time")
 		try:
-			logging.basicConfig(filename='logs/PI_CLK.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG))
+			logging.basicConfig(filename='logs/PI_CLK.log', filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 		except:
 			print("unable to create logfile using Pi's Clock")
 
-	active = checkActive(ser,10)
+	active = checkActive(ser,40)
 	if active == True:
 		# Configure modem settings
 		logging.info("Setup modem settings")
@@ -449,16 +479,16 @@ def warmup():
 
 # MAIN gets called on script startup
 def main():
+	ina260,ser=warmup()
 	if check_button() == True:
 		send_txt('Button held during startup, entering configuration mode on module %s' % ID,NUM)
 		strobe_light(1,10)
 		temp_time = _time.perf_counter()
 		time_out = 5*60
 		while (_time.perf_counter() - time_out) < temp_time:
+			print()
 			# do somthing to promt user for change of phone number/module number
 			# restart after exiting config mode if any settings have been changed
-
-	ina260,ser = warmup()
 
 	# Load settings from settings_.json
 	ID, NUM = load_settings()
@@ -467,7 +497,7 @@ def main():
 		# check water sensor
 		if check_float() == True:
 			send_txt('Float switch has been activated on module %s' % ID,NUM)
-			
+
 		temp_voltage, temp_current = check_voltage(ina260)
 		if temp_voltage > 12.2:
 			warned = False
@@ -478,10 +508,8 @@ def main():
 				send_txt("Module %s, Low Battery Warning: %sV" % (ID,temp_voltage),NUM)
 				warned = True
 			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
-		
 		_time.sleep(60*10)
-		
-		
+
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
 		# # check if there has been a text received
@@ -533,7 +561,7 @@ def main():
 		# 			print("Correct ID(%s) received but command not recognised" % ID)
 		# 			logging.warning("Correct ID(%s) received but command not recognised" % ID)
 		# 			send_txt('Correct ID(%s) received but the command was not recognised, Commands: change, status'% ID,txt_number)
-		
+
 
 if __name__ == "__main__":
 	try:
