@@ -3,8 +3,8 @@ from EC25_Driver import smsModem
 def main():
 	print("start")
 	modem = smsModem()
-	modem.saveConfig()
-	modem.reset()
+	# modem.saveConfig()
+	# modem.reset()
 	modem.connect()
 	modem.refreshNetwork()
 	modem.modeSelect("sms")

@@ -2,6 +2,7 @@ import serial
 import time
 import sys
 from datetime import datetime
+import pytz
 
 SAVE_PARAMETERS = b'AT&W'
 LOAD_PARAMETERS = b'ATZ'
@@ -41,6 +42,7 @@ class smsModem(object):
             if b'OK' in data:
                 print("Serial comms active")
                 return
+        print("Serial comms is inactive")
     
     def disconnect(self):
         if self.ser.is_open:
@@ -144,10 +146,12 @@ class smsModem(object):
         time.sleep(1)
         data = self.ReadAll()
         if b'+CCLK: ' in data:
+            # time_zone = data[26:28]
             data = data[:25]
-            data = datetime.strptime(data.decode(), '+CCLK: "%y/%m/%d,%H:%M:%S')
-            print(data)
-        return data
+            result = datetime.strptime(data.decode(), '+CCLK: "%y/%m/%d,%H:%M:%S')
+            timezone = pytz.timezone('Australia/Adelaide')
+            result = timezone.localize(result)
+        return result.now()
     
     def signalTest(self, timeout=10):
         signal = b'99'
