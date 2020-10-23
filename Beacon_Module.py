@@ -55,8 +55,8 @@ def load_settings():
 		settings = json.load(json_file)
 	# Check the data for for required settings 
 	for s in settings['settings']:
-		ID = s['ID']
-		NUM = s['NUM']
+		ID = str(s['ID'])
+		NUM = str(s['NUM'])
 		logging.info('ID loaded: ' + s['ID'])
 		logging.info('NUM loaded: ' + s['NUM'])
 	return ID, NUM
@@ -69,8 +69,8 @@ def write_settings(ID,NUM):
 	data = {}
 	data['settings'] = []
 	data['settings'].append({
-		'ID': ID,
-		'NUM': NUM
+		'ID': str(ID),
+		'NUM': str(NUM)
 	})
 	# Open file amd save data
 	with open('settings_.json', 'w') as outfile:
@@ -101,9 +101,10 @@ def check_float(false_detect_time = 5):
 			logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
 
-			return True
+			return "True"
 		_time.sleep(0.5)
-	return False
+	print("Float not active")
+	return "False"
 
 def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
@@ -114,47 +115,82 @@ def check_voltage(ina260):
 
 	return voltage, current
 
-def receive_sms_callback(modem,ID):
+def receive_sms_callback(ina260,modem,ID,NUM):
+	GPIO.output(DTR,GPIO.LOW)
+	modem.modeSelect("SMS")
 	print("SMS Received")
 	texts = modem.getSMS()
 	print("Number of Texts Received: %d" % len(texts))
 	for text in texts:
 		if ID in text["message"]:
 			print("ID Found")
-			text["message"] = text["message"].lower()
-			
+			text["message"] = text["message"].lower().split(' ')
+			print(text)
 			if "status" in text["message"]:
 				print("Status Requested")
-			elif "change id" in text["message"]:
+				voltage,current = check_voltage(ina260)
+				float_status = check_float(10)
+				modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,float_status.encode()))
+
+
+			elif "changeid" in text["message"]:
 				print("ID Change Requested")
-			elif "change num" in text["message"]:
+				for i in range(len(text["message"])):		# loop through split message for the index of changeid
+					if "changeid" in text["message"][i]:		# New id should follow changeid 
+						new_id = text["message"][i+1]
+						if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
+							print("ID is %s" % new_id)
+							ID = new_id
+							# write_settings(ID,NUM)
+						else:
+							print("ID does not match requirements")
+
+			elif "changenum" in text["message"]:
 				print("Number Change Requested")
+				for i in range(len(text["message"])):		# loop through split message for the index of changeid
+					if "changenum" in text["message"][i]:		# New id should follow changeid 
+						new_num = text["message"][i+1]
+						if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
+							print("NUM is %s" % new_num)
+							NUM = new_num
+							# write_settings(ID,NUM)
+						elif "04" in new_num and len(new_num) == 10 and new_num.isdigit() == True:	# check if ID is acceptable
+							print("NUM is %s" % new_num)
+							NUM = "+61" + new_num[1:]
+							print(NUM)
+							# write_settings(ID,NUM)
+						else:
+							print("ID does not match requirements")
+
 			else:
 				print("Unknown Command? Request clarification from USER")
 			# if "status" in text["message"]:
 			# 	print("Status Requested")
 			# if "status" in text["message"]:
-			# 	print("Status Requested")	
+			# 	print("Status Requested")
+	print("going into sleep mode")
+	modem.modeSelect("SLEEP")
+	GPIO.output(DTR,GPIO.HIGH)
 
 def warmup():
 	# Setup GPIO pins and define float/button pins
 	GPIO.setmode(GPIO.BCM)
 	GPIO.setwarnings(False)
 	GPIO.setup(FLOAT, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
-	GPIO.setup(DTR, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
+	GPIO.setup(DTR, GPIO.OUT, initial=GPIO.LOW) # DTR pin on 4g module
 	GPIO.setup(W_DISABLE, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
 	GPIO.setup(RI, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # RI pin on 4g module
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 
-	GPIO.output(DTR,GPIO.LOW)
 	_time.sleep(2)
 	modem = smsModem()
 	modem.connect()
+	modem.config()
 	modem.signalTest()
-	modem.refreshNetwork()
-	modem.modeSelect("SMS")
+	# modem.refreshNetwork()
+	
 	
 	modem.ReadAll()
 	modem_time = modem.requestTime()
@@ -191,7 +227,7 @@ def warmup():
 	GPIO.add_event_detect(BUTTON, GPIO.FALLING, 
             callback=lambda x: reset_button_callback(ID,NUM), bouncetime=3000)
 	GPIO.add_event_detect(RI, GPIO.RISING,
-            callback=lambda x: receive_sms_callback(modem,ID), bouncetime=1200)
+            callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=1200)
 
 	logging.info('Warmup has been completed')
 	return ina260, modem
@@ -203,9 +239,11 @@ def main():
 	
 
 	while True:
-		# GPIO.output(DTR,GPIO.LOW)
+		# if GPIO.output == GPIO.HIGH:
+		# 	GPIO.output(DTR,GPIO.LOW)
+		# 	modem.modeSelect("SMS")
 		# check water sensor
-		if check_float() == True:
+		if check_float() == "True":
 			print('Float switch is active')
 			# send_txt('Float switch has been activated on module %s' % ID,NUM)
 
@@ -220,7 +258,9 @@ def main():
 				warned = True
 			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
 
-		# GPIO.output(DTR, GPIO.HIGH)
+		print("entering Sleep")
+		modem.modeSelect("SLEEP")
+		GPIO.output(DTR, GPIO.HIGH)
 		
 		_time.sleep(60*10)
 

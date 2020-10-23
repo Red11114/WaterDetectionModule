@@ -28,14 +28,18 @@ RI_SMS_CONFIG = b'AT+QCFG="urc/ri/smsincoming","pulse",120,1\r'
 class smsModem(object):
     def __init__(self):
         self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, timeout=2, write_timeout=2)
+    
+    def config(self):
         self.SendCommand(RI_MODE_PHYSICAL)
         self.ReadLine()
         self.SendCommand(RI_SMS_CONFIG)
         self.ReadLine()
 
+        self.SendCommand(NORMAL_FUNCTONALITY)
+        self.ReadLine()
+
         self.getSMS("ALL")
         self.clearMessage("ALL")
-        self.getSMS("ALL")
 
     def connect(self, timeout=10):
         if not self.ser.is_open:
@@ -88,13 +92,11 @@ class smsModem(object):
 
     def modeSelect(self,mode):
         if mode == "SMS":
-            self.SendCommand(NORMAL_FUNCTONALITY)
-            self.ReadLine()
             self.SendCommand(OPERATE_SMS_MODE)
             self.ReadLine()
         elif mode == "SLEEP":
-            self.SendCommand(MIN_FUNCTONALITY)
-            self.ReadLine()
+            # self.SendCommand(MIN_FUNCTONALITY)
+            # self.ReadLine()
             self.SendCommand(ENABLE_SLEEP)
             self.ReadLine()
 
