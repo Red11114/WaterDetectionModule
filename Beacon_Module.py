@@ -42,6 +42,7 @@ FLOAT = 17
 BUTTON = 27
 STROBE = 22
 ## 3G LTE Modem
+RI = 6
 DTR = 13
 W_DISABLE = 19
 PERST = 26
@@ -75,44 +76,10 @@ def write_settings(ID,NUM):
 	with open('settings_.json', 'w') as outfile:
 		json.dump(data, outfile,indent=4)
 
-# # Fucntion to start a timer while waiting for a response
-# def receive_confirmation(timer):
-# 	global ID
-# 	global confirming
-# 	# Begin timer for how long to wait for confirmation
-# 	confirming = True
-# 	# logging.info("Starting timer for %s seconds" % timer)
-# 	time = _time.perf_counter()
-# 	while _time.perf_counter() < time + timer:
-# 		# Create count down
-# 		clock = timer - (_time.perf_counter() - time)
-# 		# logging.info("Countdown: %d" % clock)
-# 		print("Countdown: %d" % clock)
-# 		txt_number, txt_msg = receive_txt()
-# 		if txt_msg != None:
-# 			# Check if the Modules ID number is included
-# 			if (txt_msg.find(ID) != -1):
-# 				# logging.info("Received confirmation reply: %s" % txt_msg)
-# 				# Check what command was sent
-# 				if (txt_msg.find("yes") != -1) or (txt_msg.find("Yes") != -1):
-# 					confirming = False
-# 					# logging.info('Confirmed yes')
-# 					strobe_light(0.2,5)
-# 					return True
-# 				elif (txt_msg.find("no") != -1) or (txt_msg.find("No") != -1):
-# 					confirming = False
-# 					logging.info('Confirmed no')
-# 					return False
-# 				else:
-# 					# logging.warning("Confirmation not correctly spelt")
-# 					send_txt('Confirmation spelt incorrectly',txt_number)
-# 			else:
-# 				# logging.warning('Incorrect format, reply: %s yes/no' % ID)
-# 				send_txt('Incorrect format, reply: %s yes/no' % ID,txt_number)
-# 		_time.sleep(1)
-# 	# logging.info("TIMER OUT")
-# 	confirming = False
-# 	return None
+def reset_button_callback(ID,NUM):
+	print("Reset button has been pressed")
+	logging.info("Reset button has been pressed")
+	strobe_light(0.2,4)
 
 # Function to strobe the light
 def strobe_light(secconds, count):
@@ -138,11 +105,6 @@ def check_float(false_detect_time = 5):
 		_time.sleep(0.5)
 	return False
 
-def reset_button_callback(channel):
-	print("Reset button has been pressed")
-	logging.info("Reset button has been pressed")
-	strobe_light(0.2,4)
-
 def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
 	current = ina260.get_current()
@@ -152,6 +114,28 @@ def check_voltage(ina260):
 
 	return voltage, current
 
+def receive_sms_callback(modem,ID):
+	print("SMS Received")
+	texts = modem.getSMS()
+	print("Number of Texts Received: %d" % len(texts))
+	for text in texts:
+		if ID in text["message"]:
+			print("ID Found")
+			text["message"] = text["message"].lower()
+			
+			if "status" in text["message"]:
+				print("Status Requested")
+			elif "change id" in text["message"]:
+				print("ID Change Requested")
+			elif "change num" in text["message"]:
+				print("Number Change Requested")
+			else:
+				print("Unknown Command? Request clarification from USER")
+			# if "status" in text["message"]:
+			# 	print("Status Requested")
+			# if "status" in text["message"]:
+			# 	print("Status Requested")	
+
 def warmup():
 	# Setup GPIO pins and define float/button pins
 	GPIO.setmode(GPIO.BCM)
@@ -159,6 +143,7 @@ def warmup():
 	GPIO.setup(FLOAT, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
 	GPIO.setup(DTR, GPIO.OUT, initial=GPIO.HIGH) # DTR pin on 4g module
 	GPIO.setup(W_DISABLE, GPIO.OUT, initial=GPIO.LOW) # W_DISABLE pin on 4g module
+	GPIO.setup(RI, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) # RI pin on 4g module
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
@@ -169,8 +154,9 @@ def warmup():
 	modem.connect()
 	modem.signalTest()
 	modem.refreshNetwork()
-	modem.modeSelect("sms")
+	modem.modeSelect("SMS")
 	
+	modem.ReadAll()
 	modem_time = modem.requestTime()
 
 	if modem_time != None:
@@ -199,8 +185,13 @@ def warmup():
 	ina260.reset_chip()
 	_time.sleep(0.1)
 
+	# Load settings from settings_.json
+	ID, NUM = load_settings()
+
 	GPIO.add_event_detect(BUTTON, GPIO.FALLING, 
-            callback=reset_button_callback, bouncetime=3000)
+            callback=lambda x: reset_button_callback(ID,NUM), bouncetime=3000)
+	GPIO.add_event_detect(RI, GPIO.RISING,
+            callback=lambda x: receive_sms_callback(modem,ID), bouncetime=1200)
 
 	logging.info('Warmup has been completed')
 	return ina260, modem
@@ -209,12 +200,10 @@ def warmup():
 def main():
 	ina260,modem=warmup()
 
-	# Load settings from settings_.json
-	ID, NUM = load_settings()
+	
 
 	while True:
 		# GPIO.output(DTR,GPIO.LOW)
-
 		# check water sensor
 		if check_float() == True:
 			print('Float switch is active')
@@ -231,7 +220,8 @@ def main():
 				warned = True
 			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
 
-		GPIO.output(DTR, GPIO.HIGH)
+		# GPIO.output(DTR, GPIO.HIGH)
+		
 		_time.sleep(60*10)
 
 		# print("waiting for SMS")

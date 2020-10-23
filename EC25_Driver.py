@@ -22,10 +22,20 @@ SIGNAL_CHECK = b'AT+CSQ\r'
 NETWORK_REG = b'AT+CREG=1\r'
 AUTO_NETWORK = b'AT+COPS=0\r'
 DISCONNECT_NETWORK = b'AT+COPS=2\r'
+RI_MODE_PHYSICAL = b'AT+QCFG="risignaltype","physical"\r'
+RI_SMS_CONFIG = b'AT+QCFG="urc/ri/smsincoming","pulse",120,1\r'
 
 class smsModem(object):
     def __init__(self):
         self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, timeout=2, write_timeout=2)
+        self.SendCommand(RI_MODE_PHYSICAL)
+        self.ReadLine()
+        self.SendCommand(RI_SMS_CONFIG)
+        self.ReadLine()
+
+        self.getSMS("ALL")
+        self.clearMessage("ALL")
+        self.getSMS("ALL")
 
     def connect(self, timeout=10):
         if not self.ser.is_open:
@@ -73,15 +83,16 @@ class smsModem(object):
         data = ''
         if getline:
             data=self.ReadLine()
+            time.sleep(0.2)
         return data 
 
     def modeSelect(self,mode):
-        if mode == "sms":
+        if mode == "SMS":
             self.SendCommand(NORMAL_FUNCTONALITY)
             self.ReadLine()
             self.SendCommand(OPERATE_SMS_MODE)
             self.ReadLine()
-        elif mode == "sleep":
+        elif mode == "SLEEP":
             self.SendCommand(MIN_FUNCTONALITY)
             self.ReadLine()
             self.SendCommand(ENABLE_SLEEP)
@@ -113,10 +124,10 @@ class smsModem(object):
         else:
             return data
     
-    def clearMessage(self,mode="all"):
-        if mode == "read":
+    def clearMessage(self,mode="ALL"):
+        if mode == "READ":
             self.SendCommand(CLEAR_READ)
-        elif mode == "all":
+        elif mode == "ALL":
             self.SendCommand(CLEAR_ALL)
         time.sleep(4)
         print(self.ReadAll())
