@@ -124,7 +124,7 @@ class smsModem(object):
             print(texts)
             return texts
         else:
-            return data
+            return None
     
     def clearMessage(self,mode="ALL"):
         if mode == "READ":
@@ -143,6 +143,7 @@ class smsModem(object):
         self.ReadLine()
         self.SendCommand(b'\x1a')
         self.ReadLine()
+        self.ReadAll()
 
     def refreshNetwork(self):
         self.SendCommand(DISCONNECT_NETWORK)

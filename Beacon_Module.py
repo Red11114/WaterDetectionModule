@@ -116,58 +116,61 @@ def check_voltage(ina260):
 	return voltage, current
 
 def receive_sms_callback(ina260,modem,ID,NUM):
+	print("SMS Received")
 	GPIO.output(DTR,GPIO.LOW)
 	modem.modeSelect("SMS")
-	print("SMS Received")
+	
 	texts = modem.getSMS()
-	print("Number of Texts Received: %d" % len(texts))
-	for text in texts:
-		if ID in text["message"]:
-			print("ID Found")
-			text["message"] = text["message"].lower().split(' ')
-			print(text)
-			if "status" in text["message"]:
-				print("Status Requested")
-				voltage,current = check_voltage(ina260)
-				float_status = check_float(10)
-				modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,float_status.encode()))
+	
+	if texts != None:
+		print("Number of Texts Received: %d" % len(texts))
+		for text in texts:
+			if ID in text["message"]:
+				print("ID Found")
+				text["message"] = text["message"].lower().split(' ')
+				print(text)
+				if "status" in text["message"]:
+					print("Status Requested")
+					voltage,current = check_voltage(ina260)
+					float_status = check_float(10)
+					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,float_status.encode()))
 
 
-			elif "changeid" in text["message"]:
-				print("ID Change Requested")
-				for i in range(len(text["message"])):		# loop through split message for the index of changeid
-					if "changeid" in text["message"][i]:		# New id should follow changeid 
-						new_id = text["message"][i+1]
-						if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
-							print("ID is %s" % new_id)
-							ID = new_id
-							# write_settings(ID,NUM)
-						else:
-							print("ID does not match requirements")
+				elif "changeid" in text["message"]:
+					print("ID Change Requested")
+					for i in range(len(text["message"])):		# loop through split message for the index of changeid
+						if "changeid" in text["message"][i]:		# New id should follow changeid 
+							new_id = text["message"][i+1]
+							if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
+								print("ID is %s" % new_id)
+								ID = new_id
+								# write_settings(ID,NUM)
+							else:
+								print("ID does not match requirements")
 
-			elif "changenum" in text["message"]:
-				print("Number Change Requested")
-				for i in range(len(text["message"])):		# loop through split message for the index of changeid
-					if "changenum" in text["message"][i]:		# New id should follow changeid 
-						new_num = text["message"][i+1]
-						if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
-							print("NUM is %s" % new_num)
-							NUM = new_num
-							# write_settings(ID,NUM)
-						elif "04" in new_num and len(new_num) == 10 and new_num.isdigit() == True:	# check if ID is acceptable
-							print("NUM is %s" % new_num)
-							NUM = "+61" + new_num[1:]
-							print(NUM)
-							# write_settings(ID,NUM)
-						else:
-							print("ID does not match requirements")
+				elif "changenum" in text["message"]:
+					print("Number Change Requested")
+					for i in range(len(text["message"])):		# loop through split message for the index of changeid
+						if "changenum" in text["message"][i]:		# New id should follow changeid 
+							new_num = text["message"][i+1]
+							if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
+								print("NUM is %s" % new_num)
+								NUM = new_num
+								# write_settings(ID,NUM)
+							elif "04" in new_num and len(new_num) == 10 and new_num.isdigit() == True:	# check if ID is acceptable
+								print("NUM is %s" % new_num)
+								NUM = "+61" + new_num[1:]
+								print(NUM)
+								# write_settings(ID,NUM)
+							else:
+								print("ID does not match requirements")
 
-			else:
-				print("Unknown Command? Request clarification from USER")
-			# if "status" in text["message"]:
-			# 	print("Status Requested")
-			# if "status" in text["message"]:
-			# 	print("Status Requested")
+				else:
+					print("Unknown Command? Request clarification from USER")
+				# if "status" in text["message"]:
+				# 	print("Status Requested")
+				# if "status" in text["message"]:
+				# 	print("Status Requested")
 	print("going into sleep mode")
 	modem.modeSelect("SLEEP")
 	GPIO.output(DTR,GPIO.HIGH)
