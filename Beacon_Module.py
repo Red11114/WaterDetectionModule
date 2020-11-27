@@ -116,6 +116,7 @@ def check_voltage(ina260):
 	return voltage, current
 
 def receive_sms_callback(ina260,modem,ID,NUM):
+	logging.info("SMS Received")
 	print("SMS Received")
 	GPIO.output(DTR,GPIO.LOW)
 	_time.sleep(0.2)
@@ -123,14 +124,17 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 	texts = modem.getSMS()
 	
 	if texts != None:
+		logging.info("Number of Texts Received: %d" % len(texts))
 		print("Number of Texts Received: %d" % len(texts))
 		for text in texts:
 			if ID in text["message"]:
 				strobe_light(0.2,5)
+				logging.info("ID Found")
 				print("ID Found")
-				text["message"] = text["message"].lower().split(' ')
+				# text["message"] = text["message"].lower().split(' ')
 				print(text)
 				if "status" in text["message"]:
+					logging.info("Status Requested")
 					print("Status Requested")
 					voltage,current = check_voltage(ina260)
 					float_status = check_float(10)
@@ -171,7 +175,16 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								# write_settings(ID,NUM)
 							else:
 								print("ID does not match requirements")
-
+				elif "wifi on" in text["message"]:
+					logging.info("wifi on Requested")
+					print("wifi on Requested")
+					cmd = 'ifconfig wlan0 up'
+					os.system(cmd)
+				elif "wifi off" in text["message"]:
+					logging.info("wifi off Requested")
+					print("wifi off Requested")
+					cmd = 'ifconfig wlan0 down'
+					os.system(cmd)
 				else:
 					print("Unknown Command? Request clarification from USER")
 	print("going into sleep mode")

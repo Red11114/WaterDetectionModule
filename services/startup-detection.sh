@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # activate the venv
-cd /home/pi/WaterDetectionModule
+cd /home/pi/waterdetectionmodule
 source env/bin/activate
 
 # Create logs directory
