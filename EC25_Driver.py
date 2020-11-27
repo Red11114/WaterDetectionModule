@@ -24,29 +24,37 @@ AUTO_NETWORK = b'AT+COPS=0\r'
 DISCONNECT_NETWORK = b'AT+COPS=2\r'
 RI_MODE_PHYSICAL = b'AT+QCFG="risignaltype","physical"\r'
 RI_SMS_CONFIG = b'AT+QCFG="urc/ri/smsincoming","pulse",120,1\r'
+TURN_OFF = b'AT+QPOWD=1\r'
 
 class smsModem(object):
     def __init__(self):
-        self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, timeout=2, write_timeout=2)
+        self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, write_timeout=2)
     
     def config(self):
+        
         self.SendCommand(RI_MODE_PHYSICAL)
         self.ReadLine()
         self.SendCommand(RI_SMS_CONFIG)
         self.ReadLine()
-
         self.SendCommand(NORMAL_FUNCTONALITY)
         self.ReadLine()
+        self.SendCommand(NETWORK_REG)
+        self.ReadLine()
+        self.SendCommand(OPERATE_SMS_MODE)
+        self.ReadLine()
+        self.SendCommand(ENABLE_SLEEP)
+        self.ReadLine()
 
-        self.getSMS("ALL")
-        self.clearMessage("ALL")
+        # check = self.getSMS("ALL")
+        # if check != None:
+        #     self.clearMessage("ALL")
 
     def connect(self, timeout=10):
         if not self.ser.is_open:
             self.ser.open()
 
-        self.ser.flushInput()
-        self.ser.flushOutput()
+        # self.ser.flushInput()
+        # self.ser.flushOutput()
 
         temp_time = time.perf_counter()
         while (time.perf_counter() - temp_time < timeout):
@@ -70,13 +78,13 @@ class smsModem(object):
 
     def ReadLine(self):
         data = self.ser.readline()
-        time.sleep(0.5)
+        time.sleep(0.2)
         print(data)
         return data
 
     def ReadAll(self):
         data=self.ser.read(self.ser.in_waiting)
-        time.sleep(0.5)
+        time.sleep(0.2)
         print(data)
         return data
 
@@ -91,13 +99,14 @@ class smsModem(object):
         return data 
 
     def modeSelect(self,mode):
-        if mode == "SMS":
-            self.SendCommand(OPERATE_SMS_MODE)
+        if mode == "NORM":
+            self.SendCommand(NORMAL_FUNCTONALITY)
             self.ReadLine()
-        elif mode == "SLEEP":
-            # self.SendCommand(MIN_FUNCTONALITY)
-            # self.ReadLine()
-            self.SendCommand(ENABLE_SLEEP)
+        elif mode == "MIN":
+            self.SendCommand(MIN_FUNCTONALITY)
+            self.ReadLine()
+        elif mode == "OFF":
+            self.SendCommand(TURN_OFF)
             self.ReadLine()
 
     def getSMS(self,mode="UNREAD"):
@@ -135,12 +144,13 @@ class smsModem(object):
         print(self.ReadAll())
 
     def sendMessage(self, recipient=b'+61448182742', message=b'TextMessage.content not set.'):
-        self.SendCommand(OPERATE_SMS_MODE)
-        self.ReadLine()
+        # self.SendCommand(OPERATE_SMS_MODE)
+        # self.ReadLine()
+        # time.sleep(2)
         self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
-        self.ReadLine()
+        # self.ReadLine()
         self.SendCommand(b'%b\r' % message)
-        self.ReadLine()
+        # self.ReadLine()
         self.SendCommand(b'\x1a')
         self.ReadLine()
         self.ReadAll()

@@ -23,7 +23,7 @@ def main():
         charge_current = ina260.get_current()
         f.write("%s:%s:%s%s,%0.4f,%0.4f\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond)[:2],bus_voltage,charge_current))
         print("%s:%s:%s%s,%0.4f,%0.4f" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond)[:2],bus_voltage,charge_current))
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 if __name__ == '__main__':  
     main()

@@ -86,9 +86,9 @@ def strobe_light(secconds, count):
 	# logging.info("Strobe light :)")
 	i = 0
 	while i < count:
-		GPIO.output(STROBE, GPIO.HIGH)
-		_time.sleep(secconds)
-		GPIO.output(STROBE, GPIO.LOW)
+		# GPIO.output(STROBE, GPIO.HIGH)
+		_time.sleep(0.5)
+		# GPIO.output(STROBE, GPIO.LOW)
 		_time.sleep(secconds)
 		i +=1
 
@@ -101,10 +101,10 @@ def check_float(false_detect_time = 5):
 			logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
 
-			return "True"
+			return True
 		_time.sleep(0.5)
 	print("Float not active")
-	return "False"
+	return False
 
 def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
@@ -118,14 +118,15 @@ def check_voltage(ina260):
 def receive_sms_callback(ina260,modem,ID,NUM):
 	print("SMS Received")
 	GPIO.output(DTR,GPIO.LOW)
-	modem.modeSelect("SMS")
-	
+	_time.sleep(0.2)
+	modem.connect()
 	texts = modem.getSMS()
 	
 	if texts != None:
 		print("Number of Texts Received: %d" % len(texts))
 		for text in texts:
 			if ID in text["message"]:
+				strobe_light(0.2,5)
 				print("ID Found")
 				text["message"] = text["message"].lower().split(' ')
 				print(text)
@@ -133,9 +134,15 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					print("Status Requested")
 					voltage,current = check_voltage(ina260)
 					float_status = check_float(10)
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,float_status.encode()))
+					if float_status == True:
+						msg_status = "True"
+					else:
+						msg_status = "False"
+					modem.signalTest()
+					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f, Current=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,current*1000,msg_status.encode()))
 
-
+				elif "credentials" in text["message"]:
+					print("send back settings")
 				elif "changeid" in text["message"]:
 					print("ID Change Requested")
 					for i in range(len(text["message"])):		# loop through split message for the index of changeid
@@ -167,12 +174,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 
 				else:
 					print("Unknown Command? Request clarification from USER")
-				# if "status" in text["message"]:
-				# 	print("Status Requested")
-				# if "status" in text["message"]:
-				# 	print("Status Requested")
 	print("going into sleep mode")
-	modem.modeSelect("SLEEP")
 	GPIO.output(DTR,GPIO.HIGH)
 
 def warmup():
@@ -186,17 +188,26 @@ def warmup():
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
+	
+	GPIO.output(PERST, GPIO.HIGH)
+	_time.sleep(0.2)
+	GPIO.output(PERST, GPIO.LOW)
+	_time.sleep(1)
+	GPIO.output(DTR, GPIO.LOW)
+	_time.sleep(1)
 
-	_time.sleep(2)
 	modem = smsModem()
 	modem.connect()
 	modem.config()
 	modem.signalTest()
 	# modem.refreshNetwork()
 	
-	
-	modem.ReadAll()
+	print("left in  buffer: %s"% modem.ReadAll())
+
 	modem_time = modem.requestTime()
+
+	print("entering Sleep")
+	GPIO.output(DTR, GPIO.HIGH)
 
 	if modem_time != None:
 		# Setup logging
@@ -230,42 +241,61 @@ def warmup():
 	GPIO.add_event_detect(BUTTON, GPIO.FALLING, 
             callback=lambda x: reset_button_callback(ID,NUM), bouncetime=3000)
 	GPIO.add_event_detect(RI, GPIO.RISING,
-            callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=1200)
+            callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=200)
+
+
+	strobe_light(1,2)
 
 	logging.info('Warmup has been completed')
-	return ina260, modem
+	return ina260, modem, ID, NUM
 
 # MAIN gets called on script startup
 def main():
-	ina260,modem=warmup()
+	ina260,modem,ID,NUM=warmup()
 
-	
+	sms_flag = 0
+	voltage_flag = 0
 
 	while True:
-		# if GPIO.output == GPIO.HIGH:
-		# 	GPIO.output(DTR,GPIO.LOW)
-		# 	modem.modeSelect("SMS")
 		# check water sensor
-		if check_float() == "True":
+		if check_float() == True and sms_flag < 2:
 			print('Float switch is active')
-			# send_txt('Float switch has been activated on module %s' % ID,NUM)
+			strobe_light(2,2)
+			GPIO.output(DTR,GPIO.LOW)
+			# modem.modeSelect("SMS")
+			_time.sleep(0.2)
+			modem.connect()
+			modem.sendMessage(recipient=NUM.encode(),message=b'Float switch has been activated on module %s' % ID.encode())
+			# modem.modeSelect("SLEEP")
+			GPIO.output(DTR, GPIO.HIGH)
+			sms_flag += 1
+			print("Flag State: %d" % sms_flag)
+		_time.sleep(1)
 
 		temp_voltage, temp_current = check_voltage(ina260)
-		if temp_voltage > 12.2:
-			logging.warning("Voltage OKAY: %sV" % temp_voltage)
-		elif temp_voltage <= 11.80:
-			logging.warning("Voltage LOW: %sV" % temp_voltage)
-		elif temp_voltage <= 11.60 :
-			if warned == False:
-				# send_txt("Module %s, Low Battery Warning: %sV" % (ID,temp_voltage),NUM)
-				warned = True
-			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
 
-		print("entering Sleep")
-		modem.modeSelect("SLEEP")
-		GPIO.output(DTR, GPIO.HIGH)
-		
-		_time.sleep(60*10)
+		if temp_voltage >= 13:
+			logging.warning("Voltage CHARGING: %sV" % temp_voltage)
+			print("send text for CHARGING")
+			strobe_light(0.5,4)
+		elif 13 > temp_voltage >= 11.8:
+			logging.warning("Voltage GOOD: %sV" % temp_voltage)
+			print("send text for GOOD")
+		elif 11.8 > temp_voltage >= 11.6:
+			logging.warning("Voltage LOW: %sV" % temp_voltage)
+			print("send text for LOW")
+		elif 11.6 > temp_voltage:
+			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
+			print("send text for VERY LOW")
+		else:
+			print("unknown voltage")
+
+		# if 8 > voltage_flag >= 1:
+		# 		voltage_flag += 1
+		# 	elif voltage_flag > 8:
+		# 		voltage_flag = 0
+
+		_time.sleep(30*60)
 
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
