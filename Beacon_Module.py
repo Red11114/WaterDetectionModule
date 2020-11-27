@@ -190,7 +190,7 @@ def warmup():
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 	
 	GPIO.output(PERST, GPIO.HIGH)
-	_time.sleep(0.2)
+	_time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
 	_time.sleep(1)
 	GPIO.output(DTR, GPIO.LOW)
@@ -281,10 +281,10 @@ def main():
 		elif 13 > temp_voltage >= 11.8:
 			logging.warning("Voltage GOOD: %sV" % temp_voltage)
 			print("send text for GOOD")
-		elif 11.8 > temp_voltage >= 11.6:
+		elif 11.8 > temp_voltage >= 11.4:
 			logging.warning("Voltage LOW: %sV" % temp_voltage)
 			print("send text for LOW")
-		elif 11.6 > temp_voltage:
+		elif 11.4 > temp_voltage:
 			logging.warning("Voltage VERY LOW: %sV" % temp_voltage)
 			print("send text for VERY LOW")
 		else:
