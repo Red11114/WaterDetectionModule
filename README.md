@@ -238,6 +238,24 @@ sudo systemctl enable detection.service
 sudo systemctl start detection.service
 ```
 
+## Edit of privliges file
+```
+sudo visudo
+```
+under the line (25),
+
+%sudo   ALL=(ALL:ALL) ALL
+
+add the following
+```
+hostname ALL=(ALL) NOPASSWORD: /home/hostname/waterdetectionmodule/wifi.sh
+```
+change permissions of file:
+```
+sudo chmod root:toot /home/username/waterdetectionmodule/wifi.sh
+sudo chmod 700 /home/username/waterdetectionmodule/wifi.sh
+```
+
 ## Running the test script
 
 This script should test importing of all required dependencies.

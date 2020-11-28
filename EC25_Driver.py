@@ -1,6 +1,5 @@
 import serial
 import time
-import sys
 from datetime import datetime
 import pytz
 

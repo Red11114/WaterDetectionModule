@@ -11,7 +11,6 @@ import time
 
 # Import installed packages
 import RPi.GPIO as GPIO
-import serial
 
 # Import drivers
 from INA260_MINIMAL import INA260
