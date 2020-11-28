@@ -11,12 +11,10 @@ def main():
     print("Current Date: %s-%s-%s, and Time: %s-%s-%s" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second))
 
     f = open("logs/%s-%s-%s:%s-%s-%s_power.txt" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second),"a")
-    # logging.basicConfig(filename="logs/%s-%s-%s:%s-%s-%s_power.log" % (datetime_object.day,datetime_object.month,datetime_object.year,datetime_object.hour,datetime_object.minute,datetime_object.second), filemode='w', format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
-    
+   
     print("Time,Bus Voltage (Volts),Charge Current (Amps)")
     f.write("Time,Bus Voltage (Volts),Charge Current (Amps)\n")
-    # logging.info("Time,Bus Voltage (Volts),Charge Current (Amps)")
-    
+ 
     while True:
         datetime_object = datetime.now()
         bus_voltage = ina260.get_bus_voltage()

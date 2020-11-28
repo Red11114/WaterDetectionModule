@@ -4,6 +4,7 @@ import sys
 from datetime import datetime
 import pytz
 
+# Define At command strings
 SAVE_PARAMETERS = b'AT&W'
 LOAD_PARAMETERS = b'ATZ'
 OPERATE_SMS_MODE = b'AT+CMGF=1\r'
@@ -31,7 +32,6 @@ class smsModem(object):
         self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, write_timeout=2)
     
     def config(self):
-        
         self.SendCommand(RI_MODE_PHYSICAL)
         self.ReadLine()
         self.SendCommand(RI_SMS_CONFIG)
@@ -44,10 +44,6 @@ class smsModem(object):
         self.ReadLine()
         self.SendCommand(ENABLE_SLEEP)
         self.ReadLine()
-
-        # check = self.getSMS("ALL")
-        # if check != None:
-        #     self.clearMessage("ALL")
 
     def connect(self, timeout=10):
         if not self.ser.is_open:
@@ -144,13 +140,8 @@ class smsModem(object):
         print(self.ReadAll())
 
     def sendMessage(self, recipient=b'+61448182742', message=b'TextMessage.content not set.'):
-        # self.SendCommand(OPERATE_SMS_MODE)
-        # self.ReadLine()
-        # time.sleep(2)
         self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
-        # self.ReadLine()
         self.SendCommand(b'%b\r' % message)
-        # self.ReadLine()
         self.SendCommand(b'\x1a')
         self.ReadLine()
         self.ReadAll()
@@ -170,7 +161,6 @@ class smsModem(object):
         time.sleep(1)
         data = self.ReadAll()
         if b'+CCLK: ' in data:
-            # time_zone = data[26:28]
             data = data[:25]
             result = datetime.strptime(data.decode(), '+CCLK: "%y/%m/%d,%H:%M:%S')
             timezone = pytz.timezone('Australia/Adelaide')
