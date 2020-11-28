@@ -4,6 +4,7 @@
 
 # Import builtin packages
 import os, stat
+import subprocess
 import logging
 from datetime import datetime
 from datetime import date
@@ -178,13 +179,15 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 				elif "wifi on" in text["message"]:
 					logging.info("wifi on Requested")
 					print("wifi on Requested")
-					cmd = 'ifconfig wlan0 up'
-					os.system(cmd)
+					subprocess.Popen("sudo rfkill unblock wifi", shell=True)
+					# cmd = 'ifconfig wlan0 up'
+					# os.system(cmd)
 				elif "wifi off" in text["message"]:
 					logging.info("wifi off Requested")
 					print("wifi off Requested")
-					cmd = 'ifconfig wlan0 down'
-					os.system(cmd)
+					subprocess.Popen("sudo rfkill block wifi", shell=True)
+					# cmd = 'ifconfig wlan0 down'
+					# os.system(cmd)
 				else:
 					print("Unknown Command? Request clarification from USER")
 	print("going into sleep mode")
@@ -202,14 +205,18 @@ def warmup():
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 	
+	modem = smsModem()
+
 	GPIO.output(PERST, GPIO.HIGH)
 	_time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
-	_time.sleep(1)
+	_time.sleep(0.5)
 	GPIO.output(DTR, GPIO.LOW)
 	_time.sleep(1)
-
-	modem = smsModem()
+	while b"RDY" not in modem.ReadLine():
+		print("waiting for module to boot")
+	modem.ReadLine()
+	_time.sleep(2)
 	modem.connect()
 	modem.config()
 	modem.signalTest()

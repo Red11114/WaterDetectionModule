@@ -53,8 +53,8 @@ class smsModem(object):
         if not self.ser.is_open:
             self.ser.open()
 
-        # self.ser.flushInput()
-        # self.ser.flushOutput()
+        self.ser.flushInput()
+        self.ser.flushOutput()
 
         temp_time = time.perf_counter()
         while (time.perf_counter() - temp_time < timeout):

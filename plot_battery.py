@@ -1,9 +1,9 @@
 #!/bin/bash
 import matplotlib.pyplot as plt
-# from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
-#                                AutoMinorLocator)
+from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
+                                AutoMinorLocator)
 print("importing complete")
-fname='logs/25-11-2020:20-33-4_power.txt'
+fname='logs/27-11-2020:13-30-34_power.txt'
 
 data = {
     "time" : [],
@@ -31,15 +31,30 @@ print("File complete")
 #     if int(times[1]) % 10 == 0:
 #         major_ticks.append(int(times[1]))
 
-# fig, ax = plt.subplots()
-plt.plot(data["time"],data["current"])
-# ax.xaxis.set_major_locator(MultipleLocator(50))
+fig, ax = plt.subplots()
+ax.plot(data["time"],data["current"])
+print(data["time"][1])
+num = len(data["time"])/10
+ax.xaxis.set_major_locator(MultipleLocator(num))
 # ax.xaxis.set_major_formatter(FormatStrFormatter('%s:%s:%s'))
-# plt.xticks(rotation='vertical')
-# plt.subplots_adjust(bottom=0.3)
+plt.xticks(rotation='vertical')
+plt.subplots_adjust(bottom=0.2)
 # ax.xaxis.set_horizontalalignment('right')
 print("Plot complete")
+
+plt.show()
 plt.savefig('Current_vs_Time.png')
+print("first done")
+fig2, ax2 = plt.subplots()
+ax2.plot(data["time"],data["voltage"])
+
+print(data["time"][1])
+num = len(data["time"])/10
+ax2.xaxis.set_major_locator(MultipleLocator(num))
+# ax.xaxis.set_major_formatter(FormatStrFormatter('%s:%s:%s'))
+plt.xticks(rotation='vertical')
+plt.subplots_adjust(bottom=0.2)
+plt.savefig('Voltage_vs_Time.png')
 print("SAVED")
 # fig2, ax2 = plt.subplots()
 # ax2.plot(data["time"],data["voltage"])
