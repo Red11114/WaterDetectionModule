@@ -1,10 +1,11 @@
 #!/bin/bash
 
 cd /home/pi/waterdetectionmodule
+mkdir logs
 rm -rf env
 
 python3 -m venv env
 
 source env/bin/activate
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 deactivate

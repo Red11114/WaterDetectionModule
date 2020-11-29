@@ -96,9 +96,26 @@ def check_voltage(ina260):
 	return voltage, current
 
 def check_wifi_status():
-    cmd = 'cat /sys/class/net/wlan0/operstate'
+	cmd = 'cat /sys/class/net/wlan0/operstate'
 	response = os.system(cmd)
+	print(response)
+	if response == 0:
+		response = "up"
+	elif response == 1:
+		response = "down"
+	print(response)
+	return response
+
+def turn_wifi_on():
+    cmd = 'sudo /home/pi/waterdetectionmodule/wifi_on.sh'
+    response = os.system(cmd)
     return response
+
+def turn_wifi_off():
+    cmd = 'sudo /home/pi/waterdetectionmodule/wifi_off.sh'
+    response = os.system(cmd)
+    return response
+
 
 def receive_sms_callback(ina260,modem,ID,NUM):
 	logging.info("SMS Received")
@@ -130,8 +147,8 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					signal_conn = modem.signalTest()
 					wifi_status = check_wifi_status()
 
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rWater Detected=%s, Voltage=%4.2f, Current=%4.2f\r, Signal=%d/100, WiFi=%s' % 
-									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn.encode(),wifi_status.encode())
+					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rWater Detected=%s, Voltage=%4.2f, Current=%4.2f\r, Signal=%b/100, WiFi=%s' % 
+									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status.encode())
 									)
 
 				elif "credentials" in text["message"]:
@@ -169,25 +186,13 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					print("wifi on Requested")
 					wifi_status = check_wifi_status()
 					print("wifi_status: %s" % wifi_status)
-					if "DOWN" in wifi_status:
-						print("setting wifi to ON")
-						os.system('sudo /home/pi/waterdetectionmodule/wifi.sh')
-					elif "UP" in wifi_status:
-						print("wifi is already up")
-					else:
-						print("unknown response from OS")
+					turn_wifi_on()
 
 				elif "wifi off" in text["message"]:
 					logging.info("wifi off Requested")
 					print("wifi off Requested")
 					wifi_status = check_wifi_status()
-					if "UP" in wifi_status:
-						print("setting wifi to OFF")
-						os.system('sudo /home/pi/waterdetectionmodule/wifi.sh')
-					elif "DOWN" in wifi_status:
-						print("wifi is already down")
-					else:
-						print("unknown response from OS")
+					turn_wifi_off()
 				else:
 					print("Unknown Command? Request clarification from USER")
 					
@@ -205,19 +210,22 @@ def warmup():
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-	
-	modem = smsModem()
-
+	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.HIGH)
 	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
-	time.sleep(0.5)
+	time.sleep(1)
 	GPIO.output(DTR, GPIO.LOW)
 	time.sleep(1)
-	while b"RDY" not in modem.ReadLine():
-		print("waiting for module to boot")
-	modem.ReadLine()
-	time.sleep(2)
+
+	# modem = smsModem()
+	# active = modem.ReadAll()
+	# while "RDY" not in active:
+	# 	print("waiting")
+	# 	active = modem.ReadAll()
+		
+
+	modem = smsModem()
 	modem.connect()
 	modem.config()
 	modem.clearMessage("ALL")
@@ -271,6 +279,9 @@ def warmup():
 
 # MAIN gets called on script startup
 def main():
+	check_wifi_status()
+	turn_wifi_on() 
+	check_wifi_status()
 	ina260,modem,ID,NUM=warmup()
 
 	sms_flag = 0

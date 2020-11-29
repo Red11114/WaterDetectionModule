@@ -2,6 +2,7 @@ import serial
 import time
 from datetime import datetime
 import pytz
+import serial
 
 # Define At command strings
 SAVE_PARAMETERS = b'AT&W'
@@ -28,7 +29,9 @@ TURN_OFF = b'AT+QPOWD=1\r'
 
 class smsModem(object):
     def __init__(self):
-        self.ser = serial.Serial(port='/dev/ttyAMA0', baudrate=115200, write_timeout=2)
+        print("modem init")
+        self.ser = serial.Serial(port='/dev/serial0', baudrate=115200, write_timeout=2, timeout=2)
+        # print(self.ser)
     
     def config(self):
         self.SendCommand(RI_MODE_PHYSICAL)
