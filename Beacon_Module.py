@@ -210,6 +210,9 @@ def warmup():
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
+
+
+	time.sleep(10)
 	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.HIGH)
 	time.sleep(0.5)
@@ -228,13 +231,22 @@ def warmup():
 	modem = smsModem()
 	modem.connect()
 	modem.config()
+	# modem.saveConfig()
 	modem.clearMessage("ALL")
+	time.sleep(1)
+	# GPIO.output(PERST, GPIO.HIGH)
+	# time.sleep(0.5)
+	# GPIO.output(PERST, GPIO.LOW)
+	# time.sleep(1)
+	# modem.connect()
 	modem.signalTest()
-	
+	# print("set to min functionality mode")
+	# modem.modeSelect("MIN")
+	# time.sleep(40)
 	print("left in  buffer: %s"% modem.ReadAll())
 
 	modem_time = modem.requestTime()
-
+	modem.disconnect()
 	print("entering Sleep")
 	GPIO.output(DTR, GPIO.HIGH)
 
@@ -279,9 +291,9 @@ def warmup():
 
 # MAIN gets called on script startup
 def main():
-	check_wifi_status()
-	turn_wifi_on() 
-	check_wifi_status()
+	# check_wifi_status()
+	# turn_wifi_on() 
+	# check_wifi_status()
 	ina260,modem,ID,NUM=warmup()
 
 	sms_flag = 0

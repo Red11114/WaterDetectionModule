@@ -256,6 +256,33 @@ sudo chmod root:toot /home/username/waterdetectionmodule/wifi.sh
 sudo chmod 700 /home/username/waterdetectionmodule/wifi.sh
 ```
 
+## Check Clock update sync
+```
+timedatectl status
+```
+Response:
+```
+Local time: Mon 2020-11-30 14:26:11 ACDT
+           Universal time: Mon 2020-11-30 03:56:11 UTC
+                 RTC time: n/a
+                Time zone: Australia/Adelaide (ACDT, +1030)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+```
+Set NTP:
+```
+sudo timedatectl set-ntp true
+```
+or,
+```
+sudo systemctl start systemd-timesyncd.service 
+```
+Set RTC:
+```
+timedatectl set-local-rtc 0
+```
+
 ## Running the test script
 
 This script should test importing of all required dependencies.

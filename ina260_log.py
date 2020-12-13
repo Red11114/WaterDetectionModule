@@ -14,14 +14,18 @@ def main():
    
     print("Time,Bus Voltage (Volts),Charge Current (Amps)")
     f.write("Time,Bus Voltage (Volts),Charge Current (Amps)\n")
- 
+    # f.close()
     while True:
-        # datetime_object = datetime.now()
+        datetime_object = datetime.now()
         bus_voltage = ina260.get_bus_voltage()
         charge_current = ina260.get_current()
-        f.write("%0.4f,%0.4f\n" % (bus_voltage,charge_current))
-        print("%0.4f,%0.4f" % (bus_voltage,charge_current))
-        time.sleep(0.001)
-
+        
+        f.write("%s:%s:%s%s,%0.4f,%0.4f\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond),bus_voltage,charge_current))
+        print("%s:%s:%s%s,%0.4f,%0.4f" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond),bus_voltage,charge_current))
+        # f.write("%s:%s:%s%s\n" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond)[:]))
+        # print("%s:%s:%s%s" % (datetime_object.hour,datetime_object.minute,datetime_object.second,str(datetime_object.microsecond)[:]))
+        
+        time.sleep(0.1)
+    f.close()
 if __name__ == '__main__':  
     main()

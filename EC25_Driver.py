@@ -18,6 +18,7 @@ NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
 DISABLE_SLEEP = b'AT+QSCLK=0\r'
 ENABLE_SLEEP = b'AT+QSCLK=1\r'
 ENABLE_TIME_ZONE_UPDATE = b'AT+CTZU=1\r'
+DISABLE_TIME_ZONE_UPDATE = b'AT+CTZU=0\r'
 TIME_QUERY = b'AT+CCLK?\r'
 SIGNAL_CHECK = b'AT+CSQ\r'
 NETWORK_REG = b'AT+CREG=1\r'
@@ -26,6 +27,7 @@ DISCONNECT_NETWORK = b'AT+COPS=2\r'
 RI_MODE_PHYSICAL = b'AT+QCFG="risignaltype","physical"\r'
 RI_SMS_CONFIG = b'AT+QCFG="urc/ri/smsincoming","pulse",120,1\r'
 TURN_OFF = b'AT+QPOWD=1\r'
+NTP_CHECK = b'AT+QNTP\r'
 
 class smsModem(object):
     def __init__(self):
@@ -38,11 +40,16 @@ class smsModem(object):
         self.ReadLine()
         self.SendCommand(RI_SMS_CONFIG)
         self.ReadLine()
+        # self.SendCommand(NTP_CHECK)
+        self.ReadLine()
+        
         self.SendCommand(NORMAL_FUNCTONALITY)
         self.ReadLine()
         self.SendCommand(NETWORK_REG)
         self.ReadLine()
         self.SendCommand(OPERATE_SMS_MODE)
+        self.ReadLine()
+        self.SendCommand(DISABLE_TIME_ZONE_UPDATE)
         self.ReadLine()
         self.SendCommand(ENABLE_SLEEP)
         self.ReadLine()
