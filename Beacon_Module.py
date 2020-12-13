@@ -90,8 +90,8 @@ def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
 	current = ina260.get_current()
 
-	print('V=%f,I=%f' % (voltage,current))
-	logging.debug('V=%f,I=%f' % (voltage,current))
+	print('V=%6.4f,I=%6.4f,' % (voltage,current))
+	logging.debug('V=%6.4f,I=%6.4f,' % (voltage,current))
 
 	return voltage, current
 
@@ -212,8 +212,8 @@ def warmup():
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
 
 
-	time.sleep(10)
-	time.sleep(0.5)
+	# time.sleep(10)
+	time.sleep(2)
 	GPIO.output(PERST, GPIO.HIGH)
 	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
@@ -243,7 +243,7 @@ def warmup():
 	# print("set to min functionality mode")
 	# modem.modeSelect("MIN")
 	# time.sleep(40)
-	print("left in  buffer: %s"% modem.ReadAll())
+	# print("left in  buffer: %s"% modem.ReadAll())
 
 	modem_time = modem.requestTime()
 	modem.disconnect()

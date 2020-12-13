@@ -41,7 +41,7 @@ class smsModem(object):
         self.SendCommand(RI_SMS_CONFIG)
         self.ReadLine()
         # self.SendCommand(NTP_CHECK)
-        self.ReadLine()
+        # self.ReadLine()
         
         self.SendCommand(NORMAL_FUNCTONALITY)
         self.ReadLine()
@@ -54,7 +54,7 @@ class smsModem(object):
         self.SendCommand(ENABLE_SLEEP)
         self.ReadLine()
 
-    def connect(self, timeout=10):
+    def connect(self, timeout=20):
         if not self.ser.is_open:
             self.ser.open()
 
