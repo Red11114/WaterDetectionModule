@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, date
 import json
 import time
+import subprocess
 
 # Import installed packages
 import RPi.GPIO as GPIO
@@ -97,13 +98,13 @@ def check_voltage(ina260):
 
 def check_wifi_status():
 	cmd = 'cat /sys/class/net/wlan0/operstate'
-	response = os.system(cmd)
-	print(response)
-	if response == 0:
-		response = "up"
-	elif response == 1:
-		response = "down"
-	print(response)
+	response = subprocess.check_output(cmd,shell=True)[:-1]
+	print("wifi check response = %s" % response)
+	# if response == 0:
+	# 	response = "up"
+	# elif response == 1:
+	# 	response = "down"
+	# print(response)
 	return response
 
 def turn_wifi_on():
@@ -147,8 +148,8 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					signal_conn = modem.signalTest()
 					wifi_status = check_wifi_status()
 
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rWater Detected=%s, Voltage=%4.2f, Current=%4.2f\r, Signal=%b/100, WiFi=%s' % 
-									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status.encode())
+					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
+									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status)
 									)
 
 				elif "credentials" in text["message"]:
@@ -184,15 +185,36 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 				elif "wifi on" in text["message"]:
 					logging.info("wifi on Requested")
 					print("wifi on Requested")
-					wifi_status = check_wifi_status()
-					print("wifi_status: %s" % wifi_status)
-					turn_wifi_on()
-
+					wifi_status = check_wifi_status().decode()
+					if 'up' in wifi_status:
+						print("wifi already on")
+						logging.info("wifi already on")
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already on')
+					if 'down' in wifi_status:
+						print("turning wifi on")
+						logging.info("turning wifi on")
+						turn_wifi_on()
+						wifi_status = check_wifi_status().decode()
+						while "up" not in wifi_status:
+							print("waiting for wifi to turn on")
+							wifi_status = check_wifi_status().decode()
+							time.sleep(1)
+						wifi_status = check_wifi_status()
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
 				elif "wifi off" in text["message"]:
 					logging.info("wifi off Requested")
 					print("wifi off Requested")
-					wifi_status = check_wifi_status()
-					turn_wifi_off()
+					wifi_status = check_wifi_status().decode()
+					if 'down' in wifi_status:
+						print("wifi already off")
+						logging.info("wifi already off")
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already off')
+					if 'up' in wifi_status:
+						print("turning wifi off")
+						logging.info("turning wifi off")
+						turn_wifi_off()
+						wifi_status = check_wifi_status()
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
 				else:
 					print("Unknown Command? Request clarification from USER")
 					
