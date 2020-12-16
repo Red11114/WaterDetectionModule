@@ -3,40 +3,21 @@
 # will detect water and alert the user via the number saved
 
 # Import builtin packages
-import os, stat
+import os
 import logging
-from datetime import datetime
-from datetime import date
+from datetime import datetime, date
 import json
-import time as _time
-import threading
+import time
+import subprocess
 
 # Import installed packages
 import RPi.GPIO as GPIO
-import serial
 
 # Import drivers
 from INA260_MINIMAL import INA260
 from EC25_Driver import smsModem
 
-# Define At command strings
-OPERATE_SMS_MODE = b'AT+CMGF=1\r'
-RECEIVE_SMS = b'AT+CMGL="REC UNREAD"\r'
-CLEAR_READ = b'AT+CMGD=1,1\r'
-ALLOW_AIRPLANE_MODE = b'AT+QCFG="airplanecontrol",1\r'
-MIN_FUNCTONALITY = b'AT+CFUN=0\r'
-NORMAL_FUNCTONALITY = b'AT+CFUN=1\r'
-DISABLE_SLEEP = b'AT+QSCLK=0\r'
-ENABLE_SLEEP = b'AT+QSCLK=1\r'
-# ECHO_OFF = b'ATE0\r'
-ENABLE_TIME_ZONE_UPDATE = b'AT+CTZU=3\r'
-TIME_QUERY = b'AT+CCLK?\r'
-SIGNAL_CHECK = b'AT+CSQ\r'
-NETWORK_REG = b'AT+CREG=1\r'
-AUTO_NETWORK = b'AT+COPS=0\r'
-DISCONNECT_NETWORK = b'AT+COPS=2\r'
-
-# Pin definitions
+# Pi Zero Pin definitions
 ## hardware
 FLOAT = 17
 BUTTON = 27
@@ -87,22 +68,22 @@ def strobe_light(secconds, count):
 	i = 0
 	while i < count:
 		# GPIO.output(STROBE, GPIO.HIGH)
-		_time.sleep(0.5)
+		time.sleep(0.5)
 		# GPIO.output(STROBE, GPIO.LOW)
-		_time.sleep(secconds)
+		time.sleep(secconds)
 		i +=1
 
 # Alerts the user by SMS
 def check_float(false_detect_time = 5):
 	# Check if the float swich is high for the false_detect_time
-	temp_time = _time.perf_counter()
+	temp_time = time.perf_counter()
 	while GPIO.input(FLOAT) == 0:
-		if _time.perf_counter() - temp_time > false_detect_time:
+		if time.perf_counter() - temp_time > false_detect_time:
 			logging.info("The float was activated for %s seconds" % false_detect_time)
 			strobe_light(0.5,4)
 
 			return True
-		_time.sleep(0.5)
+		time.sleep(0.5)
 	print("Float not active")
 	return False
 
@@ -110,36 +91,66 @@ def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
 	current = ina260.get_current()
 
-	print('V=%f,I=%f' % (voltage,current))
-	logging.debug('V=%f,I=%f' % (voltage,current))
+	print('V=%6.4f,I=%6.4f,' % (voltage,current))
+	logging.debug('V=%6.4f,I=%6.4f,' % (voltage,current))
 
 	return voltage, current
 
+def check_wifi_status():
+	cmd = 'cat /sys/class/net/wlan0/operstate'
+	response = subprocess.check_output(cmd,shell=True)[:-1]
+	print("wifi check response = %s" % response)
+	# if response == 0:
+	# 	response = "up"
+	# elif response == 1:
+	# 	response = "down"
+	# print(response)
+	return response
+
+def turn_wifi_on():
+    cmd = 'sudo /home/pi/waterdetectionmodule/wifi_on.sh'
+    response = os.system(cmd)
+    return response
+
+def turn_wifi_off():
+    cmd = 'sudo /home/pi/waterdetectionmodule/wifi_off.sh'
+    response = os.system(cmd)
+    return response
+
+
 def receive_sms_callback(ina260,modem,ID,NUM):
+	logging.info("SMS Received")
 	print("SMS Received")
 	GPIO.output(DTR,GPIO.LOW)
-	_time.sleep(0.2)
+	time.sleep(0.2)
 	modem.connect()
 	texts = modem.getSMS()
 	
 	if texts != None:
+		logging.info("Number of Texts Received: %d" % len(texts))
 		print("Number of Texts Received: %d" % len(texts))
 		for text in texts:
 			if ID in text["message"]:
 				strobe_light(0.2,5)
+				logging.info("ID Found")
 				print("ID Found")
-				text["message"] = text["message"].lower().split(' ')
+				# text["message"] = text["message"].lower().split(' ')
 				print(text)
 				if "status" in text["message"]:
+					logging.info("Status Requested")
 					print("Status Requested")
 					voltage,current = check_voltage(ina260)
 					float_status = check_float(10)
 					if float_status == True:
-						msg_status = "True"
+						float_status = "True"
 					else:
-						msg_status = "False"
-					modem.signalTest()
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s:\rVoltage=%4.2f, Current=%4.2f\rWater Detected=%s' % (ID.encode(),voltage,current*1000,msg_status.encode()))
+						float_status = "False"
+					signal_conn = modem.signalTest()
+					wifi_status = check_wifi_status()
+
+					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
+									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status)
+									)
 
 				elif "credentials" in text["message"]:
 					print("send back settings")
@@ -171,9 +182,42 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								# write_settings(ID,NUM)
 							else:
 								print("ID does not match requirements")
-
+				elif "wifi on" in text["message"]:
+					logging.info("wifi on Requested")
+					print("wifi on Requested")
+					wifi_status = check_wifi_status().decode()
+					if 'up' in wifi_status:
+						print("wifi already on")
+						logging.info("wifi already on")
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already on')
+					if 'down' in wifi_status:
+						print("turning wifi on")
+						logging.info("turning wifi on")
+						turn_wifi_on()
+						wifi_status = check_wifi_status().decode()
+						while "up" not in wifi_status:
+							print("waiting for wifi to turn on")
+							wifi_status = check_wifi_status().decode()
+							time.sleep(1)
+						wifi_status = check_wifi_status()
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
+				elif "wifi off" in text["message"]:
+					logging.info("wifi off Requested")
+					print("wifi off Requested")
+					wifi_status = check_wifi_status().decode()
+					if 'down' in wifi_status:
+						print("wifi already off")
+						logging.info("wifi already off")
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already off')
+					if 'up' in wifi_status:
+						print("turning wifi off")
+						logging.info("turning wifi off")
+						turn_wifi_off()
+						wifi_status = check_wifi_status()
+						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
 				else:
 					print("Unknown Command? Request clarification from USER")
+					
 	print("going into sleep mode")
 	GPIO.output(DTR,GPIO.HIGH)
 
@@ -188,24 +232,43 @@ def warmup():
 	GPIO.setup(PERST, GPIO.OUT, initial=GPIO.LOW) # PERST pin on 4g module
 	GPIO.setup(STROBE, GPIO.OUT, initial=GPIO.LOW) # Strobe pin
 	GPIO.setup(BUTTON, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Button pin
-	
+
+
+	# time.sleep(10)
+	time.sleep(2)
 	GPIO.output(PERST, GPIO.HIGH)
-	_time.sleep(0.5)
+	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
-	_time.sleep(1)
+	time.sleep(1)
 	GPIO.output(DTR, GPIO.LOW)
-	_time.sleep(1)
+	time.sleep(1)
+
+	# modem = smsModem()
+	# active = modem.ReadAll()
+	# while "RDY" not in active:
+	# 	print("waiting")
+	# 	active = modem.ReadAll()
+		
 
 	modem = smsModem()
 	modem.connect()
 	modem.config()
+	# modem.saveConfig()
+	modem.clearMessage("ALL")
+	time.sleep(1)
+	# GPIO.output(PERST, GPIO.HIGH)
+	# time.sleep(0.5)
+	# GPIO.output(PERST, GPIO.LOW)
+	# time.sleep(1)
+	# modem.connect()
 	modem.signalTest()
-	# modem.refreshNetwork()
-	
-	print("left in  buffer: %s"% modem.ReadAll())
+	# print("set to min functionality mode")
+	# modem.modeSelect("MIN")
+	# time.sleep(40)
+	# print("left in  buffer: %s"% modem.ReadAll())
 
 	modem_time = modem.requestTime()
-
+	modem.disconnect()
 	print("entering Sleep")
 	GPIO.output(DTR, GPIO.HIGH)
 
@@ -233,7 +296,7 @@ def warmup():
 	logging.info("Initialise and reset INA260 chip")
 	ina260 = INA260(dev_address=0x40)
 	ina260.reset_chip()
-	_time.sleep(0.1)
+	time.sleep(0.1)
 
 	# Load settings from settings_.json
 	ID, NUM = load_settings()
@@ -243,14 +306,16 @@ def warmup():
 	GPIO.add_event_detect(RI, GPIO.RISING,
             callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=200)
 
-
-	strobe_light(1,2)
+	# strobe_light(1,2)
 
 	logging.info('Warmup has been completed')
 	return ina260, modem, ID, NUM
 
 # MAIN gets called on script startup
 def main():
+	# check_wifi_status()
+	# turn_wifi_on() 
+	# check_wifi_status()
 	ina260,modem,ID,NUM=warmup()
 
 	sms_flag = 0
@@ -260,17 +325,21 @@ def main():
 		# check water sensor
 		if check_float() == True and sms_flag < 2:
 			print('Float switch is active')
-			strobe_light(2,2)
+			logging.info('Float switch is active')
+			# strobe_light(2,2)
+
+			# wake up module
 			GPIO.output(DTR,GPIO.LOW)
-			# modem.modeSelect("SMS")
-			_time.sleep(0.2)
+			time.sleep(0.2)
 			modem.connect()
 			modem.sendMessage(recipient=NUM.encode(),message=b'Float switch has been activated on module %s' % ID.encode())
-			# modem.modeSelect("SLEEP")
+
+			# set module into sleep again
 			GPIO.output(DTR, GPIO.HIGH)
+
 			sms_flag += 1
 			print("Flag State: %d" % sms_flag)
-		_time.sleep(1)
+		time.sleep(1)
 
 		temp_voltage, temp_current = check_voltage(ina260)
 
@@ -290,12 +359,7 @@ def main():
 		else:
 			print("unknown voltage")
 
-		# if 8 > voltage_flag >= 1:
-		# 		voltage_flag += 1
-		# 	elif voltage_flag > 8:
-		# 		voltage_flag = 0
-
-		_time.sleep(30*60)
+		time.sleep(30*60)
 
 		# print("waiting for SMS")
 		# logging.info("Waiting for SMS, Voltage: %0.2f" % current_voltage)
