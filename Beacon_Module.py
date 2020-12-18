@@ -9,6 +9,7 @@ from datetime import datetime, date
 import json
 import time
 import subprocess
+import sys
 
 # Import installed packages
 import RPi.GPIO as GPIO
@@ -354,6 +355,7 @@ def warmup():
             callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=200)
 
 	logging.info('Warmup has been completed')
+	LED_light(0.5,4)
 	return ina260, modem, ID, NUM
 
 # MAIN gets called on script startup
@@ -369,9 +371,9 @@ def main():
 	ina260,modem,ID,NUM=warmup()
 
 	while True:
-		voltage,current = check_voltage(ina260)
-		# check water sensor
 		if check_float() == True and sms_flag <= 1:
+			voltage,current = check_voltage(ina260)
+			# check water sensor
 			print('Float switch is active')
 			logging.info('Float switch is active')
 
@@ -389,6 +391,8 @@ def main():
 			print("Flag State: %d" % sms_flag)
 			logging.info("Flag State: %d" % sms_flag)
 		else:
+			voltage,current = check_voltage(ina260)
+			# check water sensor
 			if (voltage >= 12.5) and (voltage_flag >=0):
 				logging.warning("Voltage GOOD: %sV" % voltage)
 				print("send text for GOOD")
@@ -426,7 +430,11 @@ def main():
 				logging.warning("Voltage UNKNOWN: %sV" % voltage)
 				print("unknown voltage")
 
-		time.sleep(30*60)
+		wait_time = 30
+		temp_time = time.perf_counter()
+		while button_active == False and (time.perf_counter() - temp_time > wait_time*60):
+			time.sleep(60)
+		LED_light(1,2)
 
 if __name__ == "__main__":
 	try:
