@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                 AutoMinorLocator)
 print("importing complete")
-fname='logs/27-11-2020:13-30-34_power.txt'
+fname='logs/27-11-2020:13-30-34_log.txt'
 
 data = {
     "time" : [],
@@ -15,16 +15,18 @@ with open(fname, "r") as f:
     lines = f.readlines()
 
     for line in lines:
-        if first == True:
-            first = False
-        else:
-            info = line.split(",")
-            data["time"].append(info[0])
-            data["voltage"].append(float(info[1]))
-            data["current"].append(float(info[2]))
+        # if first == True:
+        #     first = False
+        # else:
+        if "DEBUG" in line:
+            info = line.split("=")
+            data["time"].append(info[0][:-11])
+            data["voltage"].append(float(info[1][:-2]))
+            data["current"].append(float(info[2][:-1]))
             # print(line)
 print("File complete")
 # major_ticks = []
+print(data)
 # for i in data["time"]:
 #     times = i.split(":")
 #     print(times)
