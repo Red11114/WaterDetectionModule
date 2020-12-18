@@ -108,11 +108,13 @@ def turn_wifi_off():
 
 def button_callback(ID,NUM):
 	global button_active
-
+	print("button pressed")
+	print("active: %s" % button_active)
 	if button_active == "True":
 		button_active = "False"
 	elif button_active == "False":
 		button_active = "True"
+	print("active: %s" % button_active)
 
 def receive_sms_callback(ina260,modem,ID,NUM):
 	global button_active
@@ -305,7 +307,11 @@ def warmup():
 	time.sleep(0.5)
 	GPIO.output(PERST, GPIO.LOW)
 	time.sleep(1)
+	GPIO.output(DTR, GPIO.HIGH)
+	GPIO.output(W_DISABLE, GPIO.HIGH)
+	time.sleep(1)
 	GPIO.output(DTR, GPIO.LOW)
+	GPIO.output(W_DISABLE, GPIO.LOW)
 	time.sleep(1)
 
 	modem = smsModem()
@@ -366,7 +372,7 @@ def main():
 	
 	sms_flag = 0
 	voltage_flag = 0
-	button_active =  False
+	button_active = "False"
 	
 	ina260,modem,ID,NUM=warmup()
 
@@ -404,6 +410,9 @@ def main():
 										(ID.encode(),voltage)
 										)
 				voltage_flag = -1
+			if (12.5 > voltage >= 11.6):
+				logging.warning("Voltage GOOD: %sV" % voltage)
+				print("send text for GOOD")
 			if (11.6 > voltage >= 11.4) and (voltage_flag < 1):
 				logging.warning("Voltage LOW: %sV" % voltage)
 				print("send text for LOW")
@@ -432,8 +441,9 @@ def main():
 
 		wait_time = 30
 		temp_time = time.perf_counter()
-		while button_active == False and (time.perf_counter() - temp_time > wait_time*60):
-			time.sleep(60)
+		while (button_active == "False") and ((time.perf_counter() - temp_time) < wait_time*60):
+			time.sleep(1)
+		print("Button active: %s" % button_active)
 		LED_light(1,2)
 
 if __name__ == "__main__":

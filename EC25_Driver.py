@@ -63,13 +63,15 @@ class smsModem(object):
 
         temp_time = time.perf_counter()
         while (time.perf_counter() - temp_time < timeout):
+            print("send AT")
             self.SendCommand(b'AT\r')
             time.sleep(1)
             data = self.ReadAll()
             if b'OK' in data:
                 print("Serial comms active")
-                return
+                return True
         print("Serial comms is inactive")
+        return False
     
     def disconnect(self):
         if self.ser.is_open:
@@ -174,7 +176,8 @@ class smsModem(object):
             result = datetime.strptime(data.decode(), '+CCLK: "%y/%m/%d,%H:%M:%S')
             timezone = pytz.timezone('Australia/Adelaide')
             result = timezone.localize(result)
-        return result.now()
+            return result.now()
+        return None
     
     def signalTest(self, timeout=10):
         signal = b'99'
