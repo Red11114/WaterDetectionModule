@@ -9,7 +9,7 @@ from datetime import datetime, date
 import json
 import time
 import subprocess
-import sys
+import argparse
 
 # Import installed packages
 import RPi.GPIO as GPIO
@@ -17,6 +17,10 @@ import RPi.GPIO as GPIO
 # Import drivers
 from INA260_MINIMAL import INA260
 from EC25_Driver import smsModem
+
+parser = argparse.ArgumentParser(description='Emulation mode?')
+parser.add_argument('-emulation',dest='emulation',default='False',help='Emulation mode wont send sms')
+parsed_args = parser.parse_args()
 
 # Pi Zero Pin definitions
 ## hardware
@@ -28,6 +32,7 @@ RI = 6
 DTR = 13
 W_DISABLE = 19
 PERST = 26
+button_active = "False"
 
 # Function to load in settings from a json file
 def load_settings():
@@ -76,10 +81,10 @@ def check_float(false_detect_time = 5):
 			logging.info("The float was activated for %s seconds" % false_detect_time)
 			LED_light(0.5,4)
 
-			return "Water Present"
+			return "Yes"
 		time.sleep(0.5)
 	print("Float not active")
-	return "No Water"
+	return "No"
 
 def check_voltage(ina260):
 	voltage = ina260.get_bus_voltage()
@@ -120,10 +125,13 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 	global button_active
 	global sms_flag
 	global voltage_flag
+
+
 	logging.info("SMS Received")
 	print("SMS Received")
 	GPIO.output(DTR,GPIO.LOW)
 	time.sleep(0.2)
+	LED_light(1,2)
 	modem.connect()
 	texts = modem.getSMS()
 	
@@ -144,8 +152,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 
 					voltage,current = check_voltage(ina260)
 					float_status = check_float(2)
-
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Module %s Has Begun Detecting For Water, Current Status=%s, Voltage=%4.2f' % 
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Module %s Has Begun Detecting For Water, Current Status=%s, Voltage=%4.2f' % 
 									(ID.encode(),float_status.encode(),voltage)
 									)
 				elif "debug" in text["message"]:
@@ -156,7 +163,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					signal_conn = modem.signalTest()
 					wifi_status = check_wifi_status()
 
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMS Flag=%d, Voltage Flag=%d, Button Active=%s' % 
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMS Flag=%d, Voltage Flag=%d, Button Active=%s' % 
 									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status,sms_flag,voltage_flag,button_active)
 									)
 				elif "status" in text["message"]:
@@ -167,7 +174,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					signal_conn = modem.signalTest()
 					wifi_status = check_wifi_status()
 
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
 									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status)
 									)
 				elif "stop" in text["message"]:
@@ -179,21 +186,21 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					voltage,current = check_voltage(ina260)
 					float_status = check_float(2)
 
-					modem.sendMessage(recipient=text["number"].encode(),message=b'Module %s Has Stopped Detecting Water, Current Status=%s, Voltage=%4.2f' % 
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Module %s Has Stopped Detecting Water, Current Status=%s, Voltage=%4.2f' % 
 									(ID.encode(),float_status.encode(),voltage)
 									)
 				elif "credentials" in text["message"]:
-					if button_active == True:
+					if button_active == "True":
 						ID,NUM = load_settings()
 						print("send back settings")
-						modem.sendMessage(recipient=text["number"].encode(),message=b'Credentials Response From Module %s Nummber=%s' % 
+						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Response From Module %s Nummber=%s' % 
 									(ID.encode(),NUM)
 									)
 					else:
 						logging.info("not in config mode")
 						print("not in config mode")
 				elif "changeid" in text["message"]:
-					if button_active == True:
+					if button_active == "True":
 						print("ID Change Requested")
 						for i in range(len(text["message"])):		# loop through split message for the index of changeid
 							if "changeid" in text["message"][i]:		# New id should follow changeid 
@@ -201,21 +208,21 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
 									print("ID is %s" % new_id)
 									logging.info("ID is %s" % new_id)
-									modem.sendMessage(recipient=text["number"].encode(),message=b'Credentials Set For Module %s New ID=%s' % 
+									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New ID=%s' % 
 									(ID.encode(),new_id)
 									)
 									ID = new_id
 									write_settings(ID,NUM)
 								else:
 									print("ID does not match requirements")
-									modem.sendMessage(recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New ID=%s is invalid' % 
+									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New ID=%s is invalid' % 
 									(ID.encode(),new_id)
 									)
 					else:
 						logging.info("not in config mode")
 						print("not in config mode")
 				elif "changenum" in text["message"]:
-					if button_active == True:
+					if button_active == "True":
 						print("Number Change Requested")
 						for i in range(len(text["message"])):		# loop through split message for the index of changeid
 							if "changenum" in text["message"][i]:		# New id should follow changeid 
@@ -223,7 +230,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
 									print("NUM is %s" % new_num)
 									logging.info("NUM is %s" % new_num)
-									modem.sendMessage(recipient=text["number"].encode(),message=b'Credentials Set For Module %s New Number=%s' % 
+									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New Number=%s' % 
 									(ID.encode(),new_num)
 									)
 									NUM = new_num
@@ -235,7 +242,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 									write_settings(ID,NUM)
 								else:
 									print("NUmber does not match requirements")
-									modem.sendMessage(recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New Number=%s is invalid' % 
+									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New Number=%s is invalid' % 
 									(ID.encode(),new_id)
 									)
 					else:
@@ -243,14 +250,14 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 						print("not in config mode")
 						LED_light(1,2)
 				elif "wifi on" in text["message"]:
-					if button_active == True:
+					if button_active == "True":
 						logging.info("wifi on Requested")
 						print("wifi on Requested")
 						wifi_status = check_wifi_status().decode()
 						if 'up' in wifi_status:
 							print("wifi already on")
 							logging.info("wifi already on")
-							modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already on')
+							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already on')
 						if 'down' in wifi_status:
 							print("turning wifi on")
 							logging.info("turning wifi on")
@@ -261,25 +268,25 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								wifi_status = check_wifi_status().decode()
 								time.sleep(1)
 							wifi_status = check_wifi_status()
-							modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
+							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
 					else:
 						logging.info("not in config mode")
 						print("not in config mode")
 				elif "wifi off" in text["message"]:
-					if button_active == True:
+					if button_active == "True":
 						logging.info("wifi off Requested")
 						print("wifi off Requested")
 						wifi_status = check_wifi_status().decode()
 						if 'down' in wifi_status:
 							print("wifi already off")
 							logging.info("wifi already off")
-							modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi is already off')
+							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already off')
 						if 'up' in wifi_status:
 							print("turning wifi off")
 							logging.info("turning wifi off")
 							turn_wifi_off()
 							wifi_status = check_wifi_status()
-							modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
+							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
 					else:
 						logging.info("not in config mode")
 						print("not in config mode")
@@ -290,6 +297,10 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 	GPIO.output(DTR,GPIO.HIGH)
 
 def warmup():
+	# global button_active
+	# print(parsed_args)
+	# if emulation=parsed_args.emulation == 'True':
+	# 	print("emulation mode")
 	# Setup GPIO pins and define float/button pins
 	GPIO.setmode(GPIO.BCM)
 	GPIO.setwarnings(False)
@@ -354,6 +365,7 @@ def warmup():
 
 	# Load settings from settings_.json
 	ID, NUM = load_settings()
+	
 
 	GPIO.add_event_detect(BUTTON, GPIO.FALLING, 
             callback=lambda x: button_callback(ID,NUM), bouncetime=3000)
@@ -372,69 +384,74 @@ def main():
 	
 	sms_flag = 0
 	voltage_flag = 0
-	button_active = "False"
+	
 	
 	ina260,modem,ID,NUM=warmup()
 
 	while True:
-		if check_float() == True and sms_flag <= 1:
-			voltage,current = check_voltage(ina260)
-			# check water sensor
-			print('Float switch is active')
-			logging.info('Float switch is active')
+		if check_float() == "Yes":
+			print("Float active")
+			if sms_flag <= 1:
+				voltage,current = check_voltage(ina260)
+				# check water sensor
+				print('Float switch is active')
+				logging.info('Float switch is active')
 
-			# wake up module
-			GPIO.output(DTR,GPIO.LOW)
-			time.sleep(0.2)
-			modem.connect()
-			modem.sendMessage(recipient=NUM.encode(),message=b'Module %s Has Detected Water! Voltage=%4.2f' % 
-									(ID.encode(),voltage)
-									)
-			# set module into sleep again
-			GPIO.output(DTR, GPIO.HIGH)
+				# wake up module
+				GPIO.output(DTR,GPIO.LOW)
+				time.sleep(0.2)
+				modem.connect()
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Has Detected Water! Voltage=%4.2f' % 
+										(ID.encode(),voltage)
+										)
+				# set module into sleep again
+				GPIO.output(DTR, GPIO.HIGH)
 
-			sms_flag += 1
+				sms_flag += 1
 			print("Flag State: %d" % sms_flag)
 			logging.info("Flag State: %d" % sms_flag)
 		else:
 			voltage,current = check_voltage(ina260)
 			# check water sensor
-			if (voltage >= 12.5) and (voltage_flag >=0):
+			if (voltage >= 12.5):
 				logging.warning("Voltage GOOD: %sV" % voltage)
 				print("send text for GOOD")
-				# wake up module
-				GPIO.output(DTR,GPIO.LOW)
-				time.sleep(0.2)
-				modem.connect()
-				modem.sendMessage(recipient=NUM.encode(),message=b'Module %s Battery Charge OK! Voltage=%4.2f' % 
-										(ID.encode(),voltage)
-										)
-				voltage_flag = -1
+				if (voltage_flag >=0):
+					# wake up module
+					GPIO.output(DTR,GPIO.LOW)
+					time.sleep(0.2)
+					modem.connect()
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Battery Charge OK! Voltage=%4.2f' % 
+											(ID.encode(),voltage)
+											)
+					voltage_flag = -1
 			if (12.5 > voltage >= 11.6):
 				logging.warning("Voltage GOOD: %sV" % voltage)
 				print("send text for GOOD")
-			if (11.6 > voltage >= 11.4) and (voltage_flag < 1):
+			if (11.6 > voltage >= 11.4):
 				logging.warning("Voltage LOW: %sV" % voltage)
 				print("send text for LOW")
-				# wake up module
-				GPIO.output(DTR,GPIO.LOW)
-				time.sleep(0.2)
-				modem.connect()
-				modem.sendMessage(recipient=NUM.encode(),message=b'Module %s LOW VOLTAGE WARNING! Voltage=%4.2f Direct solar panel towards most consistent sunlight' % 
-										(ID.encode(),voltage)
-										)
-				voltage_flag = 1
-			elif (11.4 > voltage) and (voltage_flag <= 1):
+				if (voltage_flag < 1):
+					# wake up module
+					GPIO.output(DTR,GPIO.LOW)
+					time.sleep(0.2)
+					modem.connect()
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s LOW VOLTAGE WARNING! Voltage=%4.2f Direct solar panel towards most consistent sunlight' % 
+											(ID.encode(),voltage)
+											)
+					voltage_flag = 1
+			elif (11.4 > voltage):
 				logging.warning("Voltage VERY LOW: %sV" % voltage)
 				print("send text for VERY LOW")
-				# wake up module
-				GPIO.output(DTR,GPIO.LOW)
-				time.sleep(0.2)
-				modem.connect()
-				modem.sendMessage(recipient=NUM.encode(),message=b'Module %s VERY LOW VOLTAGE WARNING!! Voltage=%4.2f Module may run out of power, consider recharging the battery' % 
-										(ID.encode(),voltage)
-										)
-				voltage_flag = 2
+				if (voltage_flag <= 1):
+					# wake up module
+					GPIO.output(DTR,GPIO.LOW)
+					time.sleep(0.2)
+					modem.connect()
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s VERY LOW VOLTAGE WARNING!! Voltage=%4.2f Module may run out of power, consider recharging the battery' % 
+											(ID.encode(),voltage)
+											)
+					voltage_flag = 2
 			else:
 				logging.warning("Voltage UNKNOWN: %sV" % voltage)
 				print("unknown voltage")

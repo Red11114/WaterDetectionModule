@@ -150,12 +150,17 @@ class smsModem(object):
         time.sleep(4)
         print(self.ReadAll())
 
-    def sendMessage(self, recipient=b'+61448182742', message=b'TextMessage.content not set.'):
-        self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
-        self.SendCommand(b'%b\r' % message)
-        self.SendCommand(b'\x1a')
-        self.ReadLine()
-        self.ReadAll()
+    def sendMessage(self,emulation="False",recipient=b'+61448182742', message=b'TextMessage.content not set.'):
+        if emulation == "False":
+            self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
+            self.SendCommand(b'%b\r' % message)
+            self.SendCommand(b'\x1a')
+            self.ReadLine()
+            self.ReadAll()
+        else:
+            print(b'AT+CMGS="%s"\r'% recipient)
+            print(b'%b\r' % message)
+            print(b'\x1a')
 
     def refreshNetwork(self):
         self.SendCommand(DISCONNECT_NETWORK)
