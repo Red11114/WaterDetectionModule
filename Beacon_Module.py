@@ -138,7 +138,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 		logging.info("Number of Texts Received: %d" % len(texts))
 		print("Number of Texts Received: %d" % len(texts))
 		print(texts)
-		text = texts[len(texts)-1)]
+		text = texts[len(texts)-1]
 		print(text)
 		if ID in text["message"]:
 			LED_light(0.2,5)
@@ -164,8 +164,8 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 				signal_conn = modem.signalTest()
 				wifi_status = check_wifi_status()
 
-				modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMS Flag=%d, Voltage Flag=%d, Button Active=%s' % 
-								(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status,sms_flag,voltage_flag,button_active)
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMSflag=%1.0f, Voltageflag=%1.0f, Button=%s' % 
+								(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status,sms_flag,voltage_flag,button_active.encode())
 								)
 			elif "status" in text["message"]:
 				logging.info("Status Requested")
