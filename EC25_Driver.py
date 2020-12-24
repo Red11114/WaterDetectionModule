@@ -131,6 +131,7 @@ class smsModem(object):
         if b'+CMGL: ' in data:
             data = data.split(b'\n')
             texts = []
+            print(data)
             for i in range(len(data)):
                 if b'+CMGL: ' in data[i]:
                     temp = data[i].split(b',')

@@ -114,12 +114,11 @@ def turn_wifi_off():
 def button_callback(ID,NUM):
 	global button_active
 	print("button pressed")
-	print("active: %s" % button_active)
+	logging.info("Button Presssed")
 	if button_active == "True":
 		button_active = "False"
 	elif button_active == "False":
 		button_active = "True"
-	print("active: %s" % button_active)
 
 def receive_sms_callback(ina260,modem,ID,NUM):
 	global button_active
@@ -133,175 +132,173 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 	time.sleep(0.2)
 	LED_light(1,2)
 	modem.connect()
-	texts = modem.getSMS()
+	texts = modem.getSMS(mode="UNREAD")
 	
 	if texts != None:
 		logging.info("Number of Texts Received: %d" % len(texts))
 		print("Number of Texts Received: %d" % len(texts))
-		for text in texts:
-			if ID in text["message"]:
-				LED_light(0.2,5)
-				logging.info("ID Found")
-				print("ID Found")
-				print(text)
-				if "start" in text["message"]:
-					logging.info("Start Requested")
-					print("Start Requested")
-					# Reset SMS sending loop
-					sms_flag = 0
+		print(texts)
+		text = texts[len(texts)-1)]
+		print(text)
+		if ID in text["message"]:
+			LED_light(0.2,5)
+			logging.info("ID Found")
+			print("ID Found")
+			print(text)
+			if "start" in text["message"] and text["number"] == NUM:
+				logging.info("Start Requested")
+				print("Start Requested")
+				# Reset SMS sending loop
+				sms_flag = 0
 
-					voltage,current = check_voltage(ina260)
-					float_status = check_float(2)
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Module %s Has Begun Detecting For Water, Current Status=%s, Voltage=%4.2f' % 
-									(ID.encode(),float_status.encode(),voltage)
-									)
-				elif "debug" in text["message"]:
-					logging.info("Debug Requested")
-					print("Debug Requested")
-					voltage,current = check_voltage(ina260)
-					float_status = check_float(2)
-					signal_conn = modem.signalTest()
-					wifi_status = check_wifi_status()
+				voltage,current = check_voltage(ina260)
+				float_status = check_float(2)
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Has Begun Detecting For Water, Current Status=%s, Voltage=%4.2f' % 
+								(ID.encode(),float_status.encode(),voltage)
+								)
+			elif "debug" in text["message"]:
+				logging.info("Debug Requested")
+				print("Debug Requested")
+				voltage,current = check_voltage(ina260)
+				float_status = check_float(2)
+				signal_conn = modem.signalTest()
+				wifi_status = check_wifi_status()
 
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMS Flag=%d, Voltage Flag=%d, Button Active=%s' % 
-									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status,sms_flag,voltage_flag,button_active)
-									)
-				elif "status" in text["message"]:
-					logging.info("Status Requested")
-					print("Status Requested")
-					voltage,current = check_voltage(ina260)
-					float_status = check_float(2)
-					signal_conn = modem.signalTest()
-					wifi_status = check_wifi_status()
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s, SMS Flag=%d, Voltage Flag=%d, Button Active=%s' % 
+								(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status,sms_flag,voltage_flag,button_active)
+								)
+			elif "status" in text["message"]:
+				logging.info("Status Requested")
+				print("Status Requested")
+				voltage,current = check_voltage(ina260)
+				float_status = check_float(2)
+				signal_conn = modem.signalTest()
+				wifi_status = check_wifi_status()
 
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
-									(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status)
-									)
-				elif "stop" in text["message"]:
-					logging.info("Stop Requested")
-					print("Stop Requested")
-					# Stop SMS sending loop
-					sms_flag = 10
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Status Response From Module %s: Water Detected=%s, Voltage=%4.2f, Current=%4.2f, Signal=%b/100, WiFi=%s' % 
+								(ID.encode(),float_status.encode(),voltage,current*1000,signal_conn,wifi_status)
+								)
+			elif "stop" in text["message"] and text["number"] == NUM:
+				logging.info("Stop Requested")
+				print("Stop Requested")
+				# Stop SMS sending loop
+				sms_flag = 10
 
-					voltage,current = check_voltage(ina260)
-					float_status = check_float(2)
+				voltage,current = check_voltage(ina260)
+				float_status = check_float(2)
 
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Module %s Has Stopped Detecting Water, Current Status=%s, Voltage=%4.2f' % 
-									(ID.encode(),float_status.encode(),voltage)
-									)
-				elif "credentials" in text["message"]:
-					if button_active == "True":
-						ID,NUM = load_settings()
-						print("send back settings")
-						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Response From Module %s Nummber=%s' % 
-									(ID.encode(),NUM)
-									)
-					else:
-						logging.info("not in config mode")
-						print("not in config mode")
-				elif "changeid" in text["message"]:
-					if button_active == "True":
-						print("ID Change Requested")
-						for i in range(len(text["message"])):		# loop through split message for the index of changeid
-							if "changeid" in text["message"][i]:		# New id should follow changeid 
-								new_id = text["message"][i+1]
-								if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
-									print("ID is %s" % new_id)
-									logging.info("ID is %s" % new_id)
-									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New ID=%s' % 
-									(ID.encode(),new_id)
-									)
-									ID = new_id
-									write_settings(ID,NUM)
-								else:
-									print("ID does not match requirements")
-									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New ID=%s is invalid' % 
-									(ID.encode(),new_id)
-									)
-					else:
-						logging.info("not in config mode")
-						print("not in config mode")
-				elif "changenum" in text["message"]:
-					if button_active == "True":
-						print("Number Change Requested")
-						for i in range(len(text["message"])):		# loop through split message for the index of changeid
-							if "changenum" in text["message"][i]:		# New id should follow changeid 
-								new_num = text["message"][i+1]
-								if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
-									print("NUM is %s" % new_num)
-									logging.info("NUM is %s" % new_num)
-									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New Number=%s' % 
-									(ID.encode(),new_num)
-									)
-									NUM = new_num
-									write_settings(ID,NUM)
-								elif "04" in new_num and len(new_num) == 10 and new_num.isdigit() == True:	# check if ID is acceptable
-									print("NUM is %s" % new_num)
-									NUM = "+61" + new_num[1:]
-									print(NUM)
-									write_settings(ID,NUM)
-								else:
-									print("NUmber does not match requirements")
-									modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New Number=%s is invalid' % 
-									(ID.encode(),new_id)
-									)
-					else:
-						logging.info("not in config mode")
-						print("not in config mode")
-						LED_light(1,2)
-				elif "wifi on" in text["message"]:
-					if button_active == "True":
-						logging.info("wifi on Requested")
-						print("wifi on Requested")
-						wifi_status = check_wifi_status().decode()
-						if 'up' in wifi_status:
-							print("wifi already on")
-							logging.info("wifi already on")
-							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already on')
-						if 'down' in wifi_status:
-							print("turning wifi on")
-							logging.info("turning wifi on")
-							turn_wifi_on()
-							wifi_status = check_wifi_status().decode()
-							while "up" not in wifi_status:
-								print("waiting for wifi to turn on")
-								wifi_status = check_wifi_status().decode()
-								time.sleep(1)
-							wifi_status = check_wifi_status()
-							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
-					else:
-						logging.info("not in config mode")
-						print("not in config mode")
-				elif "wifi off" in text["message"]:
-					if button_active == "True":
-						logging.info("wifi off Requested")
-						print("wifi off Requested")
-						wifi_status = check_wifi_status().decode()
-						if 'down' in wifi_status:
-							print("wifi already off")
-							logging.info("wifi already off")
-							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already off')
-						if 'up' in wifi_status:
-							print("turning wifi off")
-							logging.info("turning wifi off")
-							turn_wifi_off()
-							wifi_status = check_wifi_status()
-							modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
-					else:
-						logging.info("not in config mode")
-						print("not in config mode")
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Has Stopped Detecting Water, Current Status=%s, Voltage=%4.2f' % 
+								(ID.encode(),float_status.encode(),voltage)
+								)
+			elif "credentials" in text["message"]:
+				if button_active == "True":
+					ID,NUM = load_settings()
+					print("send back settings")
+					modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Response From Module %s Nummber=%s' % 
+								(ID.encode(),NUM)
+								)
 				else:
-					print("Unknown Command? Request clarification from USER")
-					
+					logging.info("not in config mode")
+					print("not in config mode")
+			elif "changeid" in text["message"]:
+				if button_active == "True":
+					print("ID Change Requested")
+					for i in range(len(text["message"])):		# loop through split message for the index of changeid
+						if "changeid" in text["message"][i]:		# New id should follow changeid 
+							new_id = text["message"][i+1]
+							if len(new_id) == len(ID) and new_id != ID and new_id.isdigit() == True:	# check if ID is acceptable
+								print("ID is %s" % new_id)
+								logging.info("ID is %s" % new_id)
+								modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New ID=%s' % 
+								(ID.encode(),new_id)
+								)
+								ID = new_id
+								write_settings(ID,NUM)
+							else:
+								print("ID does not match requirements")
+								modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New ID=%s is invalid' % 
+								(ID.encode(),new_id)
+								)
+				else:
+					logging.info("not in config mode")
+					print("not in config mode")
+			elif "changenum" in text["message"]:
+				if button_active == "True":
+					print("Number Change Requested")
+					for i in range(len(text["message"])):		# loop through split message for the index of changeid
+						if "changenum" in text["message"][i]:		# New id should follow changeid 
+							new_num = text["message"][i+1]
+							if "+614" in new_num and len(new_num) == 12 and new_num[1:].isdigit() == True:
+								print("NUM is %s" % new_num)
+								logging.info("NUM is %s" % new_num)
+								modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Set For Module %s New Number=%s' % 
+								(ID.encode(),new_num)
+								)
+								NUM = new_num
+								write_settings(ID,NUM)
+							elif "04" in new_num and len(new_num) == 10 and new_num.isdigit() == True:	# check if ID is acceptable
+								print("NUM is %s" % new_num)
+								NUM = "+61" + new_num[1:]
+								print(NUM)
+								write_settings(ID,NUM)
+							else:
+								print("Number does not match requirements")
+								modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Credentials Denied For Module %s New Number=%s is invalid' % 
+								(ID.encode(),new_id)
+								)
+				else:
+					logging.info("not in config mode")
+					print("not in config mode")
+					LED_light(1,2)
+			elif "wifi on" in text["message"]:
+				if button_active == "True":
+					logging.info("wifi on Requested")
+					print("wifi on Requested")
+					wifi_status = check_wifi_status().decode()
+					if 'up' in wifi_status:
+						print("wifi already on")
+						logging.info("wifi already on")
+						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already on')
+					if 'down' in wifi_status:
+						print("turning wifi on")
+						logging.info("turning wifi on")
+						turn_wifi_on()
+						wifi_status = check_wifi_status().decode()
+						while "up" not in wifi_status:
+							print("waiting for wifi to turn on")
+							wifi_status = check_wifi_status().decode()
+							time.sleep(1)
+						wifi_status = check_wifi_status()
+						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
+				else:
+					logging.info("not in config mode")
+					print("not in config mode")
+			elif "wifi off" in text["message"]:
+				if button_active == "True":
+					logging.info("wifi off Requested")
+					print("wifi off Requested")
+					wifi_status = check_wifi_status().decode()
+					if 'down' in wifi_status:
+						print("wifi already off")
+						logging.info("wifi already off")
+						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi is already off')
+					if 'up' in wifi_status:
+						print("turning wifi off")
+						logging.info("turning wifi off")
+						turn_wifi_off()
+						wifi_status = check_wifi_status()
+						modem.sendMessage(emulation=parsed_args.emulation,recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
+				else:
+					logging.info("not in config mode")
+					print("not in config mode")
+			else:
+				print("Unknown Command? Request clarification from USER")
+
 	print("going into sleep mode")
 	GPIO.output(DTR,GPIO.HIGH)
 
 def warmup():
-	# global button_active
-	# print(parsed_args)
-	# if emulation=parsed_args.emulation == 'True':
-	# 	print("emulation mode")
-	# Setup GPIO pins and define float/button pins
+
 	GPIO.setmode(GPIO.BCM)
 	GPIO.setwarnings(False)
 	GPIO.setup(FLOAT, GPIO.IN, pull_up_down=GPIO.PUD_UP) # Float Switch pin
@@ -366,9 +363,8 @@ def warmup():
 	# Load settings from settings_.json
 	ID, NUM = load_settings()
 	
-
 	GPIO.add_event_detect(BUTTON, GPIO.FALLING, 
-            callback=lambda x: button_callback(ID,NUM), bouncetime=3000)
+            callback=lambda x: button_callback(ID,NUM), bouncetime=1000)
 	GPIO.add_event_detect(RI, GPIO.RISING,
             callback=lambda x: receive_sms_callback(ina260,modem,ID,NUM), bouncetime=200)
 
@@ -384,16 +380,15 @@ def main():
 	
 	sms_flag = 0
 	voltage_flag = 0
-	
+	wait_time = 30	#minutes
 	
 	ina260,modem,ID,NUM=warmup()
 
 	while True:
+		voltage,current = check_voltage(ina260)
 		if check_float() == "Yes":
 			print("Float active")
 			if sms_flag <= 1:
-				voltage,current = check_voltage(ina260)
-				# check water sensor
 				print('Float switch is active')
 				logging.info('Float switch is active')
 
@@ -410,60 +405,53 @@ def main():
 				sms_flag += 1
 			print("Flag State: %d" % sms_flag)
 			logging.info("Flag State: %d" % sms_flag)
+		
+		
+		if (voltage >= 12.5):
+			logging.warning("Voltage GOOD: %sV" % voltage)
+			print("send text for GOOD")
+			if (voltage_flag >=0):
+				# wake up module
+				GPIO.output(DTR,GPIO.LOW)
+				time.sleep(0.2)
+				modem.connect()
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Battery Charge OK! Voltage=%4.2f' % 
+										(ID.encode(),voltage)
+										)
+				voltage_flag = -1
+		if (12.5 > voltage >= 11.6):
+			logging.warning("Voltage GOOD: %sV" % voltage)
+			print("send text for GOOD")
+		if (11.6 > voltage >= 11.4):
+			logging.warning("Voltage LOW: %sV" % voltage)
+			print("send text for LOW")
+			if (voltage_flag < 1):
+				# wake up module
+				GPIO.output(DTR,GPIO.LOW)
+				time.sleep(0.2)
+				modem.connect()
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s LOW VOLTAGE WARNING! Voltage=%4.2f Direct solar panel towards most consistent sunlight' % 
+										(ID.encode(),voltage)
+										)
+				voltage_flag = 1
+		elif (11.4 > voltage):
+			logging.warning("Voltage VERY LOW: %sV" % voltage)
+			print("send text for VERY LOW")
+			if (voltage_flag <= 1):
+				# wake up module
+				GPIO.output(DTR,GPIO.LOW)
+				time.sleep(0.2)
+				modem.connect()
+				modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s VERY LOW VOLTAGE WARNING!! Voltage=%4.2f Module may run out of power, consider recharging the battery' % 
+										(ID.encode(),voltage)
+										)
+				voltage_flag = 2
 		else:
-			voltage,current = check_voltage(ina260)
-			# check water sensor
-			if (voltage >= 12.5):
-				logging.warning("Voltage GOOD: %sV" % voltage)
-				print("send text for GOOD")
-				if (voltage_flag >=0):
-					# wake up module
-					GPIO.output(DTR,GPIO.LOW)
-					time.sleep(0.2)
-					modem.connect()
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s Battery Charge OK! Voltage=%4.2f' % 
-											(ID.encode(),voltage)
-											)
-					voltage_flag = -1
-			if (12.5 > voltage >= 11.6):
-				logging.warning("Voltage GOOD: %sV" % voltage)
-				print("send text for GOOD")
-			if (11.6 > voltage >= 11.4):
-				logging.warning("Voltage LOW: %sV" % voltage)
-				print("send text for LOW")
-				if (voltage_flag < 1):
-					# wake up module
-					GPIO.output(DTR,GPIO.LOW)
-					time.sleep(0.2)
-					modem.connect()
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s LOW VOLTAGE WARNING! Voltage=%4.2f Direct solar panel towards most consistent sunlight' % 
-											(ID.encode(),voltage)
-											)
-					voltage_flag = 1
-			elif (11.4 > voltage):
-				logging.warning("Voltage VERY LOW: %sV" % voltage)
-				print("send text for VERY LOW")
-				if (voltage_flag <= 1):
-					# wake up module
-					GPIO.output(DTR,GPIO.LOW)
-					time.sleep(0.2)
-					modem.connect()
-					modem.sendMessage(emulation=parsed_args.emulation,recipient=NUM.encode(),message=b'Module %s VERY LOW VOLTAGE WARNING!! Voltage=%4.2f Module may run out of power, consider recharging the battery' % 
-											(ID.encode(),voltage)
-											)
-					voltage_flag = 2
-			else:
-				logging.warning("Voltage UNKNOWN: %sV" % voltage)
-				print("unknown voltage")
+			logging.warning("Voltage UNKNOWN: %sV" % voltage)
+			print("unknown voltage")
 
-		wait_time = 30
 		temp_time = time.perf_counter()
-		if (button_active == "False"):
-			while (button_active == "False") and ((time.perf_counter() - temp_time) < wait_time*60):
-				time.sleep(10)
-		else:
-			print("Button active: %s" % button_active)
-			logging.info("Button active: %s" % button_active)
+		while (button_active == "False") and ((time.perf_counter() - temp_time) < wait_time*60):
 			time.sleep(1)
 		LED_light(1,2)
 

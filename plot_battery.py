@@ -6,7 +6,7 @@ from matplotlib.ticker import (MultipleLocator, FormatStrFormatter,
                                 AutoMinorLocator)
 import pytz
 print("importing complete")
-fname='logs/19-12-2020_2-46-54.log'
+fname='logs/21-12-2020_22-59-33.log'
 
 data = {
     "time" : [],
@@ -37,7 +37,8 @@ formatter = mdates.DateFormatter("%d %H:%M")
 num = len(data["time"])/10
 
 fig, ax = plt.subplots()
-ax.plot(data["time"],data["current"], 'o', color='black')
+ax.plot(data["time"],data["current"])
+# ax.plot(data["time"],data["current"], 'o', color='black')
 ax.set_title("Curren vs Time")
 ax.xaxis.set_major_formatter(formatter)
 # ax.xaxis.set_major_formatter(FormatStrFormatter('%s:%s:%s'))
@@ -50,7 +51,8 @@ plt.savefig('Current_vs_Time.png')
 print("first done")
 
 fig2, ax2 = plt.subplots()
-ax2.plot(data["time"],data["voltage"], 'o', color='black')
+ax2.plot(data["time"],data["voltage"])
+# ax2.plot(data["time"],data["voltage"], 'o', color='black')
 ax2.set_title("Voltage vs Time")
 # ax2.xaxis.set_major_locator(MultipleLocator(num))
 ax2.xaxis.set_major_formatter(formatter)
