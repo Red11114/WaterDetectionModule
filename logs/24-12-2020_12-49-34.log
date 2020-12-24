@@ -1,0 +1,10 @@
+2020-12-24 12:49:34,824 - INFO - Log file has been created: logs/24-12-2020_12-49-34.log
+2020-12-24 12:49:34,826 - INFO - Initialise and reset INA260 chip
+2020-12-24 12:49:34,929 - INFO - Loading settings
+2020-12-24 12:49:34,936 - INFO - ID loaded: 0001
+2020-12-24 12:49:34,937 - INFO - NUM loaded: +61448182742
+2020-12-24 12:49:35,077 - INFO - Warmup has been completed
+2020-12-24 12:49:35,078 - INFO - LED light :)
+2020-12-24 12:49:37,085 - DEBUG - V=11.7650,I=0.1000,
+2020-12-24 12:49:37,087 - WARNING - Voltage GOOD: 11.765V
+2020-12-24 12:49:37,089 - WARNING - Voltage UNKNOWN: 11.765V

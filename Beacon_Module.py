@@ -458,9 +458,13 @@ def main():
 
 		wait_time = 30
 		temp_time = time.perf_counter()
-		while (button_active == "False") and ((time.perf_counter() - temp_time) < wait_time*60):
+		if (button_active == "False"):
+			while (button_active == "False") and ((time.perf_counter() - temp_time) < wait_time*60):
+				time.sleep(10)
+		else:
+			print("Button active: %s" % button_active)
+			logging.info("Button active: %s" % button_active)
 			time.sleep(1)
-		print("Button active: %s" % button_active)
 		LED_light(1,2)
 
 if __name__ == "__main__":
