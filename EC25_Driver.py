@@ -63,13 +63,15 @@ class smsModem(object):
 
         temp_time = time.perf_counter()
         while (time.perf_counter() - temp_time < timeout):
+            print("send AT")
             self.SendCommand(b'AT\r')
             time.sleep(1)
             data = self.ReadAll()
             if b'OK' in data:
                 print("Serial comms active")
-                return
+                return True
         print("Serial comms is inactive")
+        return False
     
     def disconnect(self):
         if self.ser.is_open:
@@ -129,6 +131,7 @@ class smsModem(object):
         if b'+CMGL: ' in data:
             data = data.split(b'\n')
             texts = []
+            print(data)
             for i in range(len(data)):
                 if b'+CMGL: ' in data[i]:
                     temp = data[i].split(b',')
@@ -148,12 +151,17 @@ class smsModem(object):
         time.sleep(4)
         print(self.ReadAll())
 
-    def sendMessage(self, recipient=b'+61448182742', message=b'TextMessage.content not set.'):
-        self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
-        self.SendCommand(b'%b\r' % message)
-        self.SendCommand(b'\x1a')
-        self.ReadLine()
-        self.ReadAll()
+    def sendMessage(self,emulation="False",recipient=b'+61448182742', message=b'TextMessage.content not set.'):
+        if emulation == "False":
+            self.SendCommand(b'AT+CMGS="%s"\r'% recipient)
+            self.SendCommand(b'%b\r' % message)
+            self.SendCommand(b'\x1a')
+            self.ReadLine()
+            self.ReadAll()
+        else:
+            print(b'AT+CMGS="%s"\r'% recipient)
+            print(b'%b\r' % message)
+            print(b'\x1a')
 
     def refreshNetwork(self):
         self.SendCommand(DISCONNECT_NETWORK)
@@ -174,7 +182,8 @@ class smsModem(object):
             result = datetime.strptime(data.decode(), '+CCLK: "%y/%m/%d,%H:%M:%S')
             timezone = pytz.timezone('Australia/Adelaide')
             result = timezone.localize(result)
-        return result.now()
+            return result.now()
+        return None
     
     def signalTest(self, timeout=10):
         signal = b'99'
