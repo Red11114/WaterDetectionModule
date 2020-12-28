@@ -100,16 +100,15 @@ def check_wifi_status():
 	cmd = 'cat /sys/class/net/wlan0/operstate'
 	response = subprocess.check_output(cmd,shell=True)[:-1]
 	print("wifi check response = %s" % response)
-	# if response == 0:
-	# 	response = "up"
-	# elif response == 1:
-	# 	response = "down"
-	# print(response)
+	# add check for which wifi network the device is connected to
+	
 	return response
 
-def turn_wifi_on():
+def turn_wifi_on(ssid,psk):
+	# add section to set wifi to new network
     cmd = 'sudo /home/pi/waterdetectionmodule/wifi_on.sh'
     response = os.system(cmd)
+	
     return response
 
 def turn_wifi_off():
@@ -182,9 +181,21 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 								# write_settings(ID,NUM)
 							else:
 								print("ID does not match requirements")
-				elif "wifi on" in text["message"]:
+				elif "wifion" in text["message"]:
 					logging.info("wifi on Requested")
 					print("wifi on Requested")
+					ssid = None
+					psk = None
+
+					msg_split = text["message"].split(" ")
+					if len(msg_split) == 4:
+						ssid = msg_split[2]
+						psk = msg_split[3]
+						# perform some checking??
+					else:
+						print("no ssid or psk is given")
+						logging.info("no ssid or psk is given")
+
 					wifi_status = check_wifi_status().decode()
 					if 'up' in wifi_status:
 						print("wifi already on")
@@ -193,7 +204,11 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 					if 'down' in wifi_status:
 						print("turning wifi on")
 						logging.info("turning wifi on")
-						turn_wifi_on()
+						if ssid != None and psk != None:
+							turn_wifi_on(ssid,psk)
+						else:
+							turn_wifi_on()
+
 						wifi_status = check_wifi_status().decode()
 						while "up" not in wifi_status:
 							print("waiting for wifi to turn on")
@@ -201,7 +216,7 @@ def receive_sms_callback(ina260,modem,ID,NUM):
 							time.sleep(1)
 						wifi_status = check_wifi_status()
 						modem.sendMessage(recipient=text["number"].encode(),message=b'Wifi has been set to %s' % wifi_status)
-				elif "wifi off" in text["message"]:
+				elif "wifioff" in text["message"]:
 					logging.info("wifi off Requested")
 					print("wifi off Requested")
 					wifi_status = check_wifi_status().decode()
